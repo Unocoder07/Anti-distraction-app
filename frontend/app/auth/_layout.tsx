@@ -1,0 +1,19 @@
+// Auth Layout
+import { Stack } from 'expo-router';
+
+export default function AuthLayout() {
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'default',
+        contentStyle: { backgroundColor: '#020617' },
+      }}
+    >
+      <Stack.Screen name="login" />
+      <Stack.Screen name="signup" />
+      <Stack.Screen name="exam-selection" />
+      <Stack.Screen name="subject-selection" />
+    </Stack>
+  );
+}

@@ -1,0 +1,6 @@
+{
+  "name": "app-blocker",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "description": "Native Android app blocker module for blocking distracting apps"
+}

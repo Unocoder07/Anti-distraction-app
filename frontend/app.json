@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "sankalai",
+    "slug": "sankalai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "sankalai",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.jennise.sankalai"
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-image",
+      "expo-splash-screen",
+      "expo-status-bar",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cd760739-a86e-4918-8dc1-05770969cb33"
+      }
+    }
+  }
+}

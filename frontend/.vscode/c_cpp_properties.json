@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/.vscode/react_native_includes",
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/node_modules/**"
+            ],
+            "defines": [],
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "msvc-x64",
+            "compileCommands": [
+                "${workspaceFolder}/android/app/.cxx/Debug/1i5d1kl6/arm64-v8a/compile_commands.json"
+            ]
+        }
+    ],
+    "version": 4
+}
