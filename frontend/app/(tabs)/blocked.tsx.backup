@@ -1,0 +1,675 @@
+import type { BlockedApp } from "@/src/components/blocked/BlockedAppCard";
+import { BlockedAppCard } from "@/src/components/blocked/BlockedAppCard";
+import { NativeBlockingSetup } from "@/src/components/blocked/NativeBlockingSetup";
+import { COLORS } from "@/src/constants/colors";
+import { RADIUS, SPACING } from "@/src/constants/spacing";
+import {
+  categorizeApps,
+  getRecommendedBlockingApps,
+  packageNameToId,
+  SHIELD_CATEGORIES,
+} from "@/src/services/installedAppsService";
+import { nativeBlockingService } from "@/src/services/nativeBlockingService";
+import { useAuthStore, useBlockingStore, useShieldStore } from "@/src/store";
+import { Info, RefreshCw, Shield, ShieldOff } from "lucide-react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+export default function BlockedAppsScreen() {
+  const { user } = useAuthStore();
+  const {
+    apps,
+    loadBlockedApps,
+    loadLocalBlockedApps,
+    toggleApp,
+    toggleLocalApp,
+    saveUserBlockedApps,
+    saveLocalBlockedApps,
+    setApps,
+  } = useBlockingStore();
+  const { shieldEnabled, setShieldEnabled, initialized } = useShieldStore();
+
+  const [scanning, setScanning] = useState(false);
+  const [recommendedCount, setRecommendedCount] = useState(0);
+  const [usagePermissionReady, setUsagePermissionReady] = useState(false);
+
+  const mergeWithSavedStatus = useCallback(
+    (detected: BlockedApp[], saved: BlockedApp[]): BlockedApp[] => {
+      const savedByPackage = new Map(
+        saved
+          .filter((app) => !!app.packageName)
+          .map((app) => [app.packageName as string, app]),
+      );
+
+      const merged = detected.map((app) => {
+        const existing = savedByPackage.get(app.packageName ?? "");
+        return existing
+          ? { ...app, blocked: existing.blocked, id: existing.id }
+          : app;
+      });
+
+      const extras = saved.filter(
+        (app) =>
+          app.packageName &&
+          !merged.some((item) => item.packageName === app.packageName),
+      );
+
+      return [...merged, ...extras];
+    },
+    [],
+  );
+
+  const loadSavedApps = useCallback(async () => {
+    if (user) {
+      await loadBlockedApps(user.userId);
+    } else {
+      await loadLocalBlockedApps();
+    }
+  }, [loadBlockedApps, loadLocalBlockedApps, user]);
+
+  const checkPermissions = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      setUsagePermissionReady(false);
+      return;
+    }
+
+    const permissions = await nativeBlockingService.checkPermissions();
+    setUsagePermissionReady(permissions.usageStats);
+  }, []);
+
+  const refreshRecommendations = useCallback(
+    async (options?: { forceShield?: boolean; usageReady?: boolean }) => {
+      const shieldReady = options?.forceShield ?? shieldEnabled;
+      const usageReady = options?.usageReady ?? usagePermissionReady;
+
+      if (Platform.OS !== "android" || !shieldReady || !usageReady) {
+        return;
+      }
+
+      setScanning(true);
+      try {
+        const recommended = await getRecommendedBlockingApps();
+        setRecommendedCount(recommended.length);
+
+        const recommendedApps: BlockedApp[] = recommended.map((app) => ({
+          id: packageNameToId(app.packageName),
+          name: app.name,
+          category: app.category,
+          icon: app.icon || "📱",
+          blocked: false,
+          packageName: app.packageName,
+          bundleId: app.bundleId,
+        }));
+
+        const savedApps = useBlockingStore.getState().apps;
+        const merged = mergeWithSavedStatus(recommendedApps, savedApps);
+
+        if (user) {
+          await saveUserBlockedApps(user.userId, merged);
+          await loadBlockedApps(user.userId);
+        } else {
+          await saveLocalBlockedApps(merged);
+          setApps(merged);
+        }
+      } catch (error) {
+        console.error("Error refreshing Shield recommendations:", error);
+        Alert.alert(
+          "Refresh Failed",
+          "Could not analyze app usage. Please try again.",
+        );
+      } finally {
+        setScanning(false);
+      }
+    },
+    [
+      loadBlockedApps,
+      mergeWithSavedStatus,
+      saveLocalBlockedApps,
+      saveUserBlockedApps,
+      setApps,
+      shieldEnabled,
+      usagePermissionReady,
+      user,
+    ],
+  );
+
+  useEffect(() => {
+    void (async () => {
+      await loadSavedApps();
+      await checkPermissions();
+    })();
+  }, [checkPermissions, loadSavedApps]);
+
+  useEffect(() => {
+    if (!shieldEnabled || !usagePermissionReady) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      void refreshRecommendations();
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [refreshRecommendations, shieldEnabled, usagePermissionReady]);
+
+  const handleShieldToggle = async () => {
+    if (Platform.OS !== "android") {
+      Alert.alert(
+        "Not Available",
+        "Shield monitoring is only available on Android devices.",
+      );
+      return;
+    }
+
+    if (!shieldEnabled) {
+      const granted =
+        await nativeBlockingService.requestPassiveMonitoringPermission();
+      await checkPermissions();
+      if (!granted) {
+        return;
+      }
+
+      await setShieldEnabled(true);
+      Alert.alert(
+        "Shield Enabled",
+        "Sankalai analyzes app usage to help improve focus.",
+      );
+      await refreshRecommendations({ forceShield: true, usageReady: true });
+      return;
+    }
+
+    await setShieldEnabled(false);
+    setRecommendedCount(0);
+    Alert.alert("Shield Disabled", "Sankalai is not monitoring app activity.");
+  };
+
+  const handleToggleApp = async (id: number) => {
+    const app = apps.find((item) => item.id === id);
+    if (!app) return;
+
+    const nextBlocked = !app.blocked;
+    const title = nextBlocked
+      ? "Add to Focus Protection?"
+      : "Remove from Focus Protection?";
+    const message = nextBlocked
+      ? `${app.name} will be blocked only during active study sessions.`
+      : `${app.name} will stay available during future study sessions.`;
+
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: nextBlocked ? "Add" : "Remove",
+        style: nextBlocked ? "default" : "destructive",
+        onPress: async () => {
+          if (user) {
+            await toggleApp(user.userId, id);
+          } else {
+            await toggleLocalApp(id);
+          }
+        },
+      },
+    ]);
+  };
+
+  const displayApps = apps;
+  const blockedCount = displayApps.filter((app) => app.blocked).length;
+
+  const grouped = useMemo(
+    () =>
+      categorizeApps(
+        displayApps.map((app) => ({
+          id: app.packageName ?? String(app.id),
+          name: app.name,
+          packageName: app.packageName ?? "",
+          bundleId: app.bundleId ?? "",
+          icon: app.icon,
+          category: app.category,
+          isSystemApp: false,
+        })),
+      ),
+    [displayApps],
+  );
+
+  const infoTitle = scanning
+    ? "Analyzing app usage..."
+    : !shieldEnabled
+      ? "Shield is off"
+      : recommendedCount > 0
+        ? `${recommendedCount} focus recommendations ready`
+        : "No recommendations yet";
+
+  const infoText = scanning
+    ? "Sankalai is using Usage Access to privately analyze app frequency and screen time."
+    : !shieldEnabled
+      ? "Sankalai is not monitoring app activity."
+      : recommendedCount > 0
+        ? "Recommendations are generated from on-device usage patterns only. Accessibility is not used for analytics."
+        : "Turn Shield on and keep using your phone normally. Sankalai will recommend distracting apps to block based on your usage patterns.";
+
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Shield</Text>
+          <Text style={styles.subtitle}>
+            Privacy-first app insights and focus protection list
+          </Text>
+        </View>
+        <View style={styles.headerRight}>
+          <Pressable
+            style={styles.refreshBtn}
+            onPress={() => void refreshRecommendations()}
+            disabled={scanning || !shieldEnabled || !usagePermissionReady}
+          >
+            {scanning ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <RefreshCw size={16} color={COLORS.primary} />
+            )}
+          </Pressable>
+          {blockedCount > 0 && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{blockedCount} selected</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {Platform.OS === "android" && (
+        <View style={styles.shieldModeCard}>
+          <View style={styles.shieldModeHeader}>
+            <View
+              style={[
+                styles.shieldIcon,
+                shieldEnabled && styles.shieldIconActive,
+              ]}
+            >
+              {shieldEnabled ? (
+                <Shield size={20} color={COLORS.primary} />
+              ) : (
+                <ShieldOff size={20} color={COLORS.textSecondary} />
+              )}
+            </View>
+            <View style={styles.shieldModeText}>
+              <Text style={styles.shieldModeTitle}>
+                Shield {shieldEnabled ? "ON" : "OFF"}
+              </Text>
+              <Text style={styles.shieldModeDesc}>
+                {shieldEnabled
+                  ? "Passive usage insights and recommendations are enabled"
+                  : "No analytics, no recommendations, no passive monitoring"}
+              </Text>
+            </View>
+            <Pressable
+              style={[
+                styles.toggleButton,
+                shieldEnabled && styles.toggleButtonActive,
+              ]}
+              onPress={handleShieldToggle}
+              disabled={!initialized}
+            >
+              <View
+                style={[
+                  styles.toggleKnob,
+                  shieldEnabled && styles.toggleKnobActive,
+                ]}
+              />
+            </Pressable>
+          </View>
+          <View
+            style={[
+              styles.shieldModeStatus,
+              shieldEnabled && styles.shieldModeStatusActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.shieldModeStatusText,
+                shieldEnabled && styles.shieldModeStatusTextActive,
+              ]}
+            >
+              {shieldEnabled
+                ? "🛡️ Sankalai analyzes app usage to help improve focus."
+                : "🔒 Sankalai is not monitoring app activity."}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {Platform.OS === "android" && shieldEnabled && !usagePermissionReady && (
+        <NativeBlockingSetup
+          onSetupComplete={async () => {
+            await checkPermissions();
+            await refreshRecommendations();
+          }}
+        />
+      )}
+
+      <View style={styles.infoCard}>
+        <View style={styles.infoIconBox}>
+          {scanning ? (
+            <ActivityIndicator size="small" color={COLORS.primary} />
+          ) : (
+            <Info size={16} color={COLORS.primary} />
+          )}
+        </View>
+        <View style={styles.infoContent}>
+          <Text style={styles.infoTitle}>{infoTitle}</Text>
+          <Text style={styles.infoText}>{infoText}</Text>
+        </View>
+      </View>
+
+      {Platform.OS === "android" && (
+        <View style={styles.privacyCard}>
+          <Text style={styles.privacyTitle}>
+            Privacy-first Focus Protection
+          </Text>
+          <Text style={styles.privacyText}>
+            Accessibility is not used for normal Shield monitoring. It is
+            requested only when you start a strict study session, then Sankalai
+            stops strict processing as soon as the session ends.
+          </Text>
+          <View style={styles.privacyPoints}>
+            <Text style={styles.privacyPoint}>
+              ✓ Passive recommendations use Usage Access only
+            </Text>
+            <Text style={styles.privacyPoint}>
+              ✓ No overlays or foreground polling
+            </Text>
+            <Text style={styles.privacyPoint}>
+              ✓ After a session, you can disable Focus Protection for full
+              privacy and banking safety
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {displayApps.length > 0 ? (
+        SHIELD_CATEGORIES.map((category) => {
+          const categoryApps = grouped[category];
+          if (categoryApps.length === 0) return null;
+
+          return (
+            <View key={category}>
+              <View style={styles.listHeader}>
+                <Text style={styles.listTitle}>{category}</Text>
+                <Text style={styles.listSub}>{categoryApps.length} apps</Text>
+              </View>
+              <View style={styles.appList}>
+                {categoryApps.map((installed) => {
+                  const app = displayApps.find(
+                    (item) => item.packageName === installed.packageName,
+                  );
+                  if (!app) return null;
+
+                  return (
+                    <BlockedAppCard
+                      key={app.packageName ?? String(app.id)}
+                      app={app}
+                      onToggle={handleToggleApp}
+                    />
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })
+      ) : !scanning ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>🧘</Text>
+          <Text style={styles.emptyTitle}>No Focus Apps Yet</Text>
+          <Text style={styles.emptyText}>
+            {shieldEnabled
+              ? "Keep Shield on and Sankalai will suggest distracting apps based on your private usage patterns."
+              : "Turn Shield on to generate private recommendations from on-device app usage."}
+          </Text>
+          {shieldEnabled && usagePermissionReady && (
+            <Pressable
+              style={styles.rescanBtn}
+              onPress={() => void refreshRecommendations()}
+            >
+              <RefreshCw size={14} color={COLORS.primary} />
+              <Text style={styles.rescanText}>Analyze Again</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : null}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: COLORS.background },
+  container: {
+    paddingTop: 52,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    gap: 16,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 4,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  refreshBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: `${COLORS.primary}15`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: COLORS.text,
+    letterSpacing: -0.5,
+  },
+  subtitle: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  countBadge: {
+    backgroundColor: "rgba(20,184,166,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(20,184,166,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  countText: { fontSize: 11, fontWeight: "700", color: COLORS.primary },
+
+  shieldModeCard: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+    overflow: "hidden",
+  },
+  shieldModeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    padding: SPACING.md,
+  },
+  shieldIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${COLORS.textSecondary}15`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shieldIconActive: {
+    backgroundColor: `${COLORS.primary}15`,
+  },
+  shieldModeText: {
+    flex: 1,
+  },
+  shieldModeTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+  shieldModeDesc: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  toggleButton: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: COLORS.border,
+    padding: 2,
+    justifyContent: "center",
+  },
+  toggleButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  toggleKnob: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  toggleKnobActive: {
+    transform: [{ translateX: 20 }],
+  },
+  shieldModeStatus: {
+    backgroundColor: `${COLORS.textSecondary}10`,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    padding: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  shieldModeStatusActive: {
+    backgroundColor: `${COLORS.primary}10`,
+    borderTopColor: `${COLORS.primary}30`,
+  },
+  shieldModeStatusText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    lineHeight: 16,
+  },
+  shieldModeStatusTextActive: {
+    color: COLORS.primary,
+  },
+
+  infoCard: {
+    flexDirection: "row",
+    gap: SPACING.md,
+    backgroundColor: `${COLORS.primary}10`,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}30`,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+  },
+  infoIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: `${COLORS.primary}20`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoContent: { flex: 1, gap: 4 },
+  infoTitle: { fontSize: 12, fontWeight: "700", color: COLORS.primary },
+  infoText: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 16 },
+
+  privacyCard: {
+    backgroundColor: "rgba(59,130,246,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(59,130,246,0.2)",
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+  },
+  privacyTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#3b82f6",
+  },
+  privacyText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    lineHeight: 16,
+  },
+  privacyPoints: {
+    gap: 4,
+    marginTop: 4,
+  },
+  privacyPoint: {
+    fontSize: 11,
+    color: "#3b82f6",
+    lineHeight: 16,
+  },
+
+  listHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  listTitle: { fontSize: 13, fontWeight: "700", color: COLORS.text },
+  listSub: { fontSize: 11, color: COLORS.textSecondary },
+  appList: { gap: 10, marginTop: 8 },
+
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    gap: 12,
+  },
+  emptyIcon: { fontSize: 48 },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.text,
+    textAlign: "center",
+  },
+  emptyText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  rescanBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}40`,
+  },
+  rescanText: { fontSize: 13, fontWeight: "600", color: COLORS.primary },
+});

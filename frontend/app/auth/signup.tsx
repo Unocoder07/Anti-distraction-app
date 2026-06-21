@@ -39,6 +39,7 @@ export default function SignupScreen() {
 
   const validateForm = () => {
     const newErrors: any = {};
+    const trimmedEmail = email.trim();
 
     if (!name) {
       newErrors.name = 'Name is required';
@@ -46,9 +47,9 @@ export default function SignupScreen() {
       newErrors.name = 'Name must be at least 2 characters';
     }
 
-    if (!email) {
+    if (!trimmedEmail) {
       newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       newErrors.email = 'Invalid email format';
     }
 
@@ -79,7 +80,7 @@ export default function SignupScreen() {
     setErrors({});
 
     try {
-      const authResponse = await authService.signUp(email, password, name);
+      const authResponse = await authService.signUp(email.trim().toLowerCase(), password, name);
       await setSession(authResponse);
       router.replace('/(tabs)' as any);
     } catch (error: any) {

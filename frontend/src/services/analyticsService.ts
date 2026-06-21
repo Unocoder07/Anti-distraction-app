@@ -1,5 +1,4 @@
 // Analytics Service - Calculate and track all analytics data
-import { blockingService } from './blockingService';
 import { focusService, type FocusSession } from './focusService';
 import { homeService } from './homeService';
 
@@ -55,11 +54,18 @@ class AnalyticsService {
   async getAnalyticsOverview(userId: string): Promise<AnalyticsOverview> {
     try {
       // Fetch all data in parallel
-      const [sessions, userStats, blockingStats] = await Promise.all([
+      const [sessions, userStats] = await Promise.all([
         focusService.getUserSessions(userId, 90), // Last 90 days
         homeService.getUserStats(userId),
-        blockingService.getBlockingStats(userId),
       ]);
+
+      // Note: Blocking stats temporarily disabled during Shield refactor
+      // You can integrate with new Shield store later if needed
+      const blockingStats = {
+        successRate: 0,
+        totalCoinsEarned: 0,
+        totalCoinsLost: 0,
+      };
 
       // Calculate weekly data
       const weeklyData = this.calculateWeeklyData(sessions);

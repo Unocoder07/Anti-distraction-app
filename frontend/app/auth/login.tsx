@@ -28,10 +28,11 @@ export default function LoginScreen() {
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
+    const trimmedEmail = email.trim();
 
-    if (!email) {
+    if (!trimmedEmail) {
       newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       newErrors.email = 'Invalid email format';
     }
 
@@ -52,7 +53,7 @@ export default function LoginScreen() {
     setErrors({});
 
     try {
-      const authResponse = await authService.signIn(email, password);
+      const authResponse = await authService.signIn(email.trim().toLowerCase(), password);
       await setSession(authResponse);
       router.replace('/(tabs)' as any);
     } catch (error: any) {

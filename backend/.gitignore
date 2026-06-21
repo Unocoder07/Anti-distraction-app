@@ -36,3 +36,6 @@ build/
 .env
 application-local.yml
 application-prod.yml
+
+# Database files
+data/

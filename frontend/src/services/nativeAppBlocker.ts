@@ -1,14 +1,18 @@
 /**
  * Native App Blocker Bridge
- * Uses the Expo app-blocker module (registered as "AppBlocker" in Kotlin)
+ * Uses the in-app Android native module registered as "AppBlocker".
  */
-import * as AppBlocker from 'app-blocker';
-import { Platform } from 'react-native';
+import { Platform } from "react-native";
+import { appBlockerNative as AppBlocker } from "./appBlockerNative";
 
 export interface InstalledAppNative {
   packageName: string;
   name: string;
   isSystemApp: boolean;
+  category?: string;
+  totalTimeMs?: number;
+  openCount?: number;
+  lastAnalyzedAt?: number;
 }
 
 export interface BlockedAppNative {
@@ -17,9 +21,9 @@ export interface BlockedAppNative {
 }
 
 function isModuleAvailable(): boolean {
-  if (Platform.OS !== 'android') return false;
+  if (Platform.OS !== "android") return false;
   try {
-    return typeof AppBlocker.getInstalledApps === 'function';
+    return AppBlocker.isAvailable();
   } catch {
     return false;
   }
@@ -27,22 +31,11 @@ function isModuleAvailable(): boolean {
 
 export const nativeAppBlocker = {
   async hasOverlayPermission(): Promise<boolean> {
-    if (!isModuleAvailable()) return false;
-    try {
-      return AppBlocker.hasOverlayPermission();
-    } catch (error) {
-      console.error('Error checking overlay permission:', error);
-      return false;
-    }
+    return true;
   },
 
   async requestOverlayPermission(): Promise<void> {
-    if (!isModuleAvailable()) return;
-    try {
-      AppBlocker.requestOverlayPermission();
-    } catch (error) {
-      console.error('Error requesting overlay permission:', error);
-    }
+    return;
   },
 
   async isAccessibilityServiceEnabled(): Promise<boolean> {
@@ -50,7 +43,7 @@ export const nativeAppBlocker = {
     try {
       return AppBlocker.isAccessibilityServiceEnabled();
     } catch (error) {
-      console.error('Error checking accessibility service:', error);
+      console.error("Error checking accessibility service:", error);
       return false;
     }
   },
@@ -60,7 +53,7 @@ export const nativeAppBlocker = {
     try {
       AppBlocker.requestAccessibilityService();
     } catch (error) {
-      console.error('Error requesting accessibility service:', error);
+      console.error("Error requesting accessibility service:", error);
     }
   },
 
@@ -69,7 +62,7 @@ export const nativeAppBlocker = {
     try {
       return AppBlocker.hasUsageStatsPermission();
     } catch (error) {
-      console.error('Error checking usage stats permission:', error);
+      console.error("Error checking usage stats permission:", error);
       return false;
     }
   },
@@ -79,7 +72,37 @@ export const nativeAppBlocker = {
     try {
       AppBlocker.requestUsageStatsPermission();
     } catch (error) {
-      console.error('Error requesting usage stats permission:', error);
+      console.error("Error requesting usage stats permission:", error);
+    }
+  },
+
+  async startPassiveMonitoring(): Promise<boolean> {
+    if (!isModuleAvailable()) return false;
+    try {
+      return AppBlocker.startPassiveMonitoring();
+    } catch (error) {
+      console.error("Error starting passive monitoring:", error);
+      return false;
+    }
+  },
+
+  async stopPassiveMonitoring(): Promise<boolean> {
+    if (!isModuleAvailable()) return true;
+    try {
+      return AppBlocker.stopPassiveMonitoring();
+    } catch (error) {
+      console.error("Error stopping passive monitoring:", error);
+      return false;
+    }
+  },
+
+  async getUsageStatsRecommendations(): Promise<InstalledAppNative[]> {
+    if (!isModuleAvailable()) return [];
+    try {
+      return await AppBlocker.getUsageStatsRecommendations();
+    } catch (error) {
+      console.error("Error getting usage recommendations:", error);
+      return [];
     }
   },
 
@@ -87,34 +110,37 @@ export const nativeAppBlocker = {
     sessionId: string,
     blockedApps: BlockedAppNative[],
     startTime: number,
-    duration: number
+    duration: number,
   ): Promise<boolean> {
     if (!isModuleAvailable()) return false;
     try {
-      AppBlocker.startBlockingSession({
+      return AppBlocker.startBlockingSession({
         sessionId,
         blockedApps,
         startTime,
         duration,
       });
-      return true;
     } catch (error) {
-      console.error('Error starting blocking session:', error);
+      console.error("Error starting blocking session:", error);
       return false;
     }
   },
 
   async getInstalledApps(): Promise<InstalledAppNative[]> {
     if (!isModuleAvailable()) {
-      console.warn('AppBlocker native module not available — use: npx expo run:android');
+      console.warn(
+        "AppBlocker native module not available — use: npx expo run:android",
+      );
       return [];
     }
     try {
-      const apps = AppBlocker.getInstalledApps();
-      console.log(`📱 Native module returned ${apps?.length ?? 0} installed apps`);
+      const apps = await AppBlocker.getInstalledApps();
+      console.log(
+        `📱 Native module returned ${apps?.length ?? 0} installed apps`,
+      );
       return apps ?? [];
     } catch (error) {
-      console.error('Error getting installed apps from native module:', error);
+      console.error("Error getting installed apps from native module:", error);
       return [];
     }
   },
@@ -124,7 +150,7 @@ export const nativeAppBlocker = {
     try {
       AppBlocker.stopBlockingSession();
     } catch (error) {
-      console.error('Error stopping blocking session:', error);
+      console.error("Error stopping blocking session:", error);
     }
   },
 
@@ -133,7 +159,7 @@ export const nativeAppBlocker = {
     try {
       return AppBlocker.isBlockingSessionActive();
     } catch (error) {
-      console.error('Error checking blocking session:', error);
+      console.error("Error checking blocking session:", error);
       return false;
     }
   },
@@ -143,12 +169,11 @@ export const nativeAppBlocker = {
     accessibility: boolean;
     usageStats: boolean;
   }> {
-    const [overlay, accessibility, usageStats] = await Promise.all([
-      this.hasOverlayPermission(),
+    const [accessibility, usageStats] = await Promise.all([
       this.isAccessibilityServiceEnabled(),
       this.hasUsageStatsPermission(),
     ]);
-    return { overlay, accessibility, usageStats };
+    return { overlay: true, accessibility, usageStats };
   },
 
   isAvailable(): boolean {

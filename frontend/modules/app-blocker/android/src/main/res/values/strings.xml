@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="accessibility_service_label">Sankalai App Blocker</string>
-    <string name="accessibility_service_description">
-        This service monitors which apps you open and blocks distracting apps during your focus sessions.
-        \n\nIt helps you stay focused by preventing access to blocked apps like social media and games.
-        \n\nYour privacy is protected - no data is collected or shared.
-    </string>
-</resources>

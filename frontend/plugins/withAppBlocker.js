@@ -40,7 +40,7 @@ const DISTRACTING_PACKAGES = [
 
 /**
  * Expo Config Plugin for App Blocker
- * Adds permissions, package visibility queries, and service declarations
+ * Adds Usage Access, package visibility queries, and Focus Protection declarations.
  */
 const withAppBlocker = (config) => {
   return withAndroidManifest(config, async (config) => {
@@ -51,12 +51,10 @@ const withAppBlocker = (config) => {
     }
 
     const permissions = [
-      "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.PACKAGE_USAGE_STATS",
-      "android.permission.FOREGROUND_SERVICE",
-      "android.permission.WAKE_LOCK",
       "android.permission.QUERY_ALL_PACKAGES",
-      "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+      "android.permission.POST_NOTIFICATIONS",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
     ];
 
     permissions.forEach((permission) => {
@@ -114,9 +112,17 @@ const withAppBlocker = (config) => {
       application.service = [];
     }
 
+    application.service = application.service.filter((service) => {
+      const name = service.$?.["android:name"];
+      return (
+        !name?.startsWith("com.sankalai.appblocker.") ||
+        name === "com.sankalai.appblocker.FocusProtectionService"
+      );
+    });
+
     const blockerService = {
       $: {
-        "android:name": "com.sankalai.appblocker.AppBlockerService",
+        "android:name": "com.sankalai.appblocker.FocusProtectionService",
         "android:permission": "android.permission.BIND_ACCESSIBILITY_SERVICE",
         "android:exported": "false",
         "android:label": "@string/accessibility_service_label",
@@ -145,7 +151,8 @@ const withAppBlocker = (config) => {
 
     const serviceExists = application.service.find(
       (s) =>
-        s.$?.["android:name"] === "com.sankalai.appblocker.AppBlockerService",
+        s.$?.["android:name"] ===
+        "com.sankalai.appblocker.FocusProtectionService",
     );
 
     if (!serviceExists) {
@@ -160,7 +167,8 @@ const withAppBlocker = (config) => {
       $: {
         "android:name": "com.sankalai.appblocker.BlockerActivity",
         "android:theme": "@android:style/Theme.NoTitleBar.Fullscreen",
-        "android:launchMode": "singleInstance",
+        "android:finishOnTaskLaunch": "true",
+        "android:launchMode": "singleTask",
         "android:excludeFromRecents": "true",
         "android:exported": "false",
         "android:noHistory": "true",
@@ -174,6 +182,35 @@ const withAppBlocker = (config) => {
 
     if (!activityExists) {
       application.activity.push(blockerActivity);
+    }
+
+    if (!application.receiver) {
+      application.receiver = [];
+    }
+
+    const bootReceiver = {
+      $: {
+        "android:name": "com.sankalai.appblocker.SmartFocusBootReceiver",
+        "android:enabled": "true",
+        "android:exported": "false",
+      },
+      "intent-filter": [
+        {
+          action: [
+            { $: { "android:name": "android.intent.action.BOOT_COMPLETED" } },
+          ],
+        },
+      ],
+    };
+
+    const receiverExists = application.receiver.find(
+      (r) =>
+        r.$?.["android:name"] ===
+        "com.sankalai.appblocker.SmartFocusBootReceiver",
+    );
+
+    if (!receiverExists) {
+      application.receiver.push(bootReceiver);
     }
 
     return config;

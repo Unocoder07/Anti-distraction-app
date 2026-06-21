@@ -1,6 +1,4 @@
 // Route: "/focus" → FocusSession (nav hidden on this screen)
-import type { BlockedApp } from '@/src/components/blocked/BlockedAppCard';
-import { UnlockDialog } from '@/src/components/blocked/UnlockDialog';
 import {
   FocusTimer,
   SessionControls,
@@ -8,17 +6,18 @@ import {
   SubjectStats,
   TimeAdjuster,
   useFocusStore,
-} from '@/src/components/focus';
-import { COLORS } from '@/src/constants/colors';
-import { RADIUS, SPACING } from '@/src/constants/spacing';
-import { focusService } from '@/src/services/focusService';
-import { storage, STORAGE_KEYS } from '@/src/services/storage';
-import { useAuthStore } from '@/src/store/authStore';
-import { useHomeStore } from '@/src/store/homeStore';
-import type { Subject } from '@/src/types';
-import { router } from 'expo-router';
-import { BarChart3, Plus, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+} from "@/src/components/focus";
+import { COLORS } from "@/src/constants/colors";
+import { RADIUS, SPACING } from "@/src/constants/spacing";
+import { focusService } from "@/src/services/focusService";
+import { nativeBlockingService } from "@/src/services/nativeBlockingService";
+import { storage, STORAGE_KEYS } from "@/src/services/storage";
+import { useAuthStore } from "@/src/store/authStore";
+import { useHomeStore } from "@/src/store/homeStore";
+import type { Subject } from "@/src/types";
+import { router } from "expo-router";
+import { BarChart3, Plus, X } from "lucide-react-native";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Modal,
@@ -27,40 +26,45 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View
-} from 'react-native';
-
-const DEMO_APP: BlockedApp = {
-  id: 1,
-  name: 'Instagram',
-  category: 'Social',
-  icon: '📸',
-  blocked: true,
-};
+  View,
+} from "react-native";
 
 const DEFAULT_SUBJECTS: Subject[] = [
-  { id: '1', name: 'History', icon: '📜', color: '#8b5cf6' },
-  { id: '2', name: 'Geography', icon: '🗺️', color: '#06b6d4' },
-  { id: '3', name: 'Polity', icon: '⚖️', color: '#f59e0b' },
-  { id: '4', name: 'Economics', icon: '💹', color: '#10b981' },
-  { id: '5', name: 'Science', icon: '🔬', color: '#ec4899' },
-  { id: '6', name: 'Mathematics', icon: '📐', color: '#3b82f6' },
+  { id: "1", name: "History", icon: "📜", color: "#8b5cf6" },
+  { id: "2", name: "Geography", icon: "🗺️", color: "#06b6d4" },
+  { id: "3", name: "Polity", icon: "⚖️", color: "#f59e0b" },
+  { id: "4", name: "Economics", icon: "💹", color: "#10b981" },
+  { id: "5", name: "Science", icon: "🔬", color: "#ec4899" },
+  { id: "6", name: "Mathematics", icon: "📐", color: "#3b82f6" },
 ];
 
-const SUBJECT_ICONS = ['📚', '✏️', '🎓', '📖', '🧮', '🔬', '🌍', '⚖️', '💡', '🎨', '🎵', '💻'];
+const SUBJECT_ICONS = [
+  "📚",
+  "✏️",
+  "🎓",
+  "📖",
+  "🧮",
+  "🔬",
+  "🌍",
+  "⚖️",
+  "💡",
+  "🎨",
+  "🎵",
+  "💻",
+];
 const SUBJECT_COLORS = [
-  '#8b5cf6',
-  '#06b6d4',
-  '#f59e0b',
-  '#10b981',
-  '#ec4899',
-  '#3b82f6',
-  '#ef4444',
-  '#f97316',
-  '#84cc16',
-  '#14b8a6',
-  '#6366f1',
-  '#a855f7',
+  "#8b5cf6",
+  "#06b6d4",
+  "#f59e0b",
+  "#10b981",
+  "#ec4899",
+  "#3b82f6",
+  "#ef4444",
+  "#f97316",
+  "#84cc16",
+  "#14b8a6",
+  "#6366f1",
+  "#a855f7",
 ];
 
 export default function FocusScreen() {
@@ -86,8 +90,7 @@ export default function FocusScreen() {
   const { user } = useAuthStore();
   const { refreshHomeData } = useHomeStore();
 
-  const [showUnlock, setShowUnlock] = useState(false);
-  const [showSubjectSelect, setShowSubjectSelect] = useState(false);
+  const [showSubjectSelect, setShowSubjectSelect] = useState(phase === "idle");
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
@@ -99,34 +102,25 @@ export default function FocusScreen() {
   const [pauseCountState, setPauseCountState] = useState(0);
 
   // Add subject form
-  const [newSubjectName, setNewSubjectName] = useState('');
+  const [newSubjectName, setNewSubjectName] = useState("");
   const [selectedIcon, setSelectedIcon] = useState(SUBJECT_ICONS[0]);
   const [selectedColor, setSelectedColor] = useState(SUBJECT_COLORS[0]);
 
   // Load custom subjects and study data on mount
   useEffect(() => {
-    loadCustomSubjects();
-    loadSubjectData();
-  }, []);
-
-  const loadCustomSubjects = async () => {
-    const saved = await storage.load<Subject[]>(STORAGE_KEYS.CUSTOM_SUBJECTS);
-    if (saved) {
-      setCustomSubjects(saved);
-    }
-  };
+    void (async () => {
+      const saved = await storage.load<Subject[]>(STORAGE_KEYS.CUSTOM_SUBJECTS);
+      if (saved) {
+        setCustomSubjects(saved);
+      }
+      await loadSubjectData();
+    })();
+  }, [loadSubjectData]);
 
   const saveCustomSubjects = async (subjects: Subject[]) => {
     await storage.save(STORAGE_KEYS.CUSTOM_SUBJECTS, subjects);
     setCustomSubjects(subjects);
   };
-
-  // Show subject selection on mount if not started
-  useEffect(() => {
-    if (!sessionStarted && phase === 'idle') {
-      setShowSubjectSelect(true);
-    }
-  }, [sessionStarted, phase]);
 
   // Tick every second when active
   useEffect(() => {
@@ -135,16 +129,7 @@ export default function FocusScreen() {
     return () => clearInterval(id);
   }, [isActive, sessionStarted, tickSecond]);
 
-  // Navigate home when all cycles done
-  useEffect(() => {
-    if (phase === 'done' && backendSessionId && user) {
-      // Complete session in backend
-      handleCompleteSession();
-    }
-    return undefined;
-  }, [phase]);
-
-  const handleCompleteSession = async () => {
+  const handleCompleteSession = useCallback(async () => {
     if (!backendSessionId || !user) return;
 
     try {
@@ -155,55 +140,68 @@ export default function FocusScreen() {
         actualDuration,
         cyclesCompleted,
         distractionCount,
-        pauseCountState
+        pauseCountState,
       );
 
-      // Show rewards alert
+      await nativeBlockingService.promptToDisableAfterSession();
+
       Alert.alert(
-        '🎉 Session Complete!',
+        "🎉 Session Complete!",
         `Great work! You earned:\n\n+${fp} Focus Points\n+${xp} XP\n\nKeep up the momentum!`,
         [
           {
-            text: 'Awesome!',
+            text: "Awesome!",
             onPress: async () => {
-              // Refresh home data
               await refreshHomeData(user.userId);
-              // Navigate home
-              router.push('/' as any);
+              router.push("/" as any);
             },
           },
-        ]
+        ],
       );
 
-      // Clear backend session
       setBackendSessionId(null);
       setDistractionCount(0);
       setPauseCountState(0);
     } catch (error) {
-      console.error('Error completing session:', error);
-      Alert.alert('Error', 'Failed to save session. Please try again.');
-      router.push('/' as any);
+      console.error("Error completing session:", error);
+      await nativeBlockingService.promptToDisableAfterSession();
+      Alert.alert("Error", "Failed to save session. Please try again.");
+      router.push("/" as any);
     }
-  };
+  }, [
+    backendSessionId,
+    cyclesCompleted,
+    distractionCount,
+    elapsedSeconds,
+    pauseCountState,
+    refreshHomeData,
+    user,
+  ]);
+
+  useEffect(() => {
+    if (phase !== "done" || !backendSessionId || !user) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      void handleCompleteSession();
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [backendSessionId, handleCompleteSession, phase, user]);
 
   const handleStartWithSubject = async (subject: Subject) => {
     if (!user) {
-      Alert.alert('Error', 'Please log in to start a session');
+      Alert.alert("Error", "Please log in to start a session");
       return;
     }
 
     try {
       setSelectedSubject(subject);
       setShowSubjectSelect(false);
-      setSessionStarted(true);
-      
-      const durationSeconds = durationMinutes * 60;
-      
-      // Start session in local store
-      startSession(durationSeconds, totalCycles, subject);
-      pauseSession(); // Pause immediately so user needs to click play
 
-      // Start session in backend
+      const durationSeconds = durationMinutes * 60;
+
       const session = await focusService.startFocusSession(
         user.userId,
         durationMinutes,
@@ -213,34 +211,44 @@ export default function FocusScreen() {
           name: subject.name,
           icon: subject.icon,
           color: subject.color,
-        }
+        },
       );
 
+      startSession(durationSeconds, totalCycles, subject);
+      pauseSession();
+      setSessionStarted(true);
       setBackendSessionId(session.id);
       setDistractionCount(0);
       setPauseCountState(0);
     } catch (error) {
-      console.error('Error starting session:', error);
-      Alert.alert('Error', 'Failed to start session. Please try again.');
+      console.error("Error starting session:", error);
+      Alert.alert("Error", "Failed to start session. Please try again.");
+      stopSession();
       setSessionStarted(false);
       setSelectedSubject(null);
+      setShowSubjectSelect(true);
     }
   };
 
   const handleStop = async () => {
     if (backendSessionId && user) {
       try {
-        // Break session in backend (user quit early)
         const actualDuration = Math.floor(elapsedSeconds / 60);
-        await focusService.breakFocusSession(backendSessionId, user.userId, actualDuration);
-        
+        await focusService.breakFocusSession(
+          backendSessionId,
+          user.userId,
+          actualDuration,
+        );
+
         Alert.alert(
-          'Session Ended',
-          'You ended the session early. No rewards earned.',
-          [{ text: 'OK' }]
+          "Session Ended",
+          "You ended the session early. No rewards earned.",
+          [{ text: "OK" }],
         );
       } catch (error) {
-        console.error('Error breaking session:', error);
+        console.error("Error breaking session:", error);
+      } finally {
+        await nativeBlockingService.promptToDisableAfterSession();
       }
     }
 
@@ -250,21 +258,21 @@ export default function FocusScreen() {
     setBackendSessionId(null);
     setDistractionCount(0);
     setPauseCountState(0);
-    router.push('/' as any);
+    router.push("/" as any);
   };
 
   const handlePlayPause = async () => {
     if (isActive) {
       pauseSession();
       setPauseCountState((prev) => prev + 1);
-      
+
       // Update pause in backend
       if (backendSessionId) {
         await focusService.pauseFocusSession(backendSessionId);
       }
     } else {
       resumeSession();
-      
+
       // Resume in backend
       if (backendSessionId) {
         await focusService.resumeFocusSession(backendSessionId);
@@ -289,7 +297,7 @@ export default function FocusScreen() {
     const updated = [...customSubjects, newSubject];
     saveCustomSubjects(updated);
 
-    setNewSubjectName('');
+    setNewSubjectName("");
     setSelectedIcon(SUBJECT_ICONS[0]);
     setSelectedColor(SUBJECT_COLORS[0]);
     setShowAddSubject(false);
@@ -308,7 +316,9 @@ export default function FocusScreen() {
   return (
     <View style={styles.screen}>
       {/* Ambient glow */}
-      <View style={[styles.glow, isActive ? styles.glowTeal : styles.glowOrange]} />
+      <View
+        style={[styles.glow, isActive ? styles.glowTeal : styles.glowOrange]}
+      />
 
       {/* Top bar */}
       <View style={styles.topBar}>
@@ -317,19 +327,29 @@ export default function FocusScreen() {
         </Pressable>
         <View style={styles.topCenter}>
           {selectedSubject && (
-            <View style={[styles.subjectBadge, { borderColor: selectedSubject.color }]}>
+            <View
+              style={[
+                styles.subjectBadge,
+                { borderColor: selectedSubject.color },
+              ]}
+            >
               <Text style={styles.subjectIcon}>{selectedSubject.icon}</Text>
               <Text style={styles.subjectName}>{selectedSubject.name}</Text>
             </View>
           )}
-          <Text style={[styles.modeLabel, { color: isActive ? COLORS.primary : '#f97316' }]}>
-            {phase === 'done' 
-              ? 'Session Complete!' 
-              : isActive 
-                ? 'Deep Work Mode' 
-                : sessionStarted 
-                  ? 'Ready to Start' 
-                  : 'Deep Work Mode'}
+          <Text
+            style={[
+              styles.modeLabel,
+              { color: isActive ? COLORS.primary : "#f97316" },
+            ]}
+          >
+            {phase === "done"
+              ? "Session Complete!"
+              : isActive
+                ? "Deep Work Mode"
+                : sessionStarted
+                  ? "Ready to Start"
+                  : "Deep Work Mode"}
           </Text>
           <Text style={styles.phaseLabel}>
             Phase {Math.min(cyclesCompleted + 1, totalCycles)} / {totalCycles}
@@ -346,16 +366,19 @@ export default function FocusScreen() {
         totalSeconds={totalSeconds}
         isActive={isActive}
         modeLabel=""
-        label={phase === 'done' ? 'Complete' : 'Remaining'}
+        label={phase === "done" ? "Complete" : "Remaining"}
       />
 
       {/* Ready to start message */}
-      {sessionStarted && !isActive && phase === 'focus' && elapsedSeconds === 0 && (
-        <View style={styles.readyMessage}>
-          <Text style={styles.readyText}>Press Play to Begin</Text>
-          <Text style={styles.readyHint}>Your timer is ready</Text>
-        </View>
-      )}
+      {sessionStarted &&
+        !isActive &&
+        phase === "focus" &&
+        elapsedSeconds === 0 && (
+          <View style={styles.readyMessage}>
+            <Text style={styles.readyText}>Press Play to Begin</Text>
+            <Text style={styles.readyHint}>Your timer is ready</Text>
+          </View>
+        )}
 
       {/* Session stats */}
       <View style={styles.statsWrap}>
@@ -375,9 +398,9 @@ export default function FocusScreen() {
         isActive={isActive}
         onPlayPause={handlePlayPause}
         onStop={handleStop}
-        onShield={() => setShowUnlock(true)}
+        onShield={() => {}}
         debugLabel="Simulate App Interruption"
-        onDebug={() => setShowUnlock(true)}
+        onDebug={() => {}}
       />
 
       {/* Subject Selection Modal */}
@@ -387,7 +410,7 @@ export default function FocusScreen() {
         animationType="slide"
         onRequestClose={() => {
           setShowSubjectSelect(false);
-          router.push('/' as any);
+          router.push("/" as any);
         }}
       >
         <View style={styles.modalOverlay}>
@@ -398,7 +421,7 @@ export default function FocusScreen() {
               <Pressable
                 onPress={() => {
                   setShowSubjectSelect(false);
-                  router.push('/' as any);
+                  router.push("/" as any);
                 }}
                 hitSlop={8}
               >
@@ -415,7 +438,9 @@ export default function FocusScreen() {
               />
             </View>
 
-            <Text style={styles.modalSubtitle}>Choose a subject to focus on</Text>
+            <Text style={styles.modalSubtitle}>
+              Choose a subject to focus on
+            </Text>
 
             {/* Subject Grid */}
             <ScrollView
@@ -426,7 +451,10 @@ export default function FocusScreen() {
               {allSubjects.map((subject) => (
                 <Pressable
                   key={subject.id}
-                  style={({ pressed }) => [styles.subjectCard, pressed && { opacity: 0.7 }]}
+                  style={({ pressed }) => [
+                    styles.subjectCard,
+                    pressed && { opacity: 0.7 },
+                  ]}
                   onPress={() => handleStartWithSubject(subject)}
                 >
                   <View
@@ -438,8 +466,15 @@ export default function FocusScreen() {
                     <Text style={styles.subjectCardIcon}>{subject.icon}</Text>
                   </View>
                   <Text style={styles.subjectCardName}>{subject.name}</Text>
-                  {subject.isCustom && <Text style={styles.customBadge}>Custom</Text>}
-                  <View style={[styles.startIndicator, { backgroundColor: subject.color }]}>
+                  {subject.isCustom && (
+                    <Text style={styles.customBadge}>Custom</Text>
+                  )}
+                  <View
+                    style={[
+                      styles.startIndicator,
+                      { backgroundColor: subject.color },
+                    ]}
+                  >
                     <Text style={styles.startText}>Start</Text>
                   </View>
                 </Pressable>
@@ -557,25 +592,6 @@ export default function FocusScreen() {
           </View>
         </View>
       </Modal>
-
-      {/* Unlock penalty dialog */}
-      <UnlockDialog
-        visible={showUnlock}
-        app={DEMO_APP}
-        onReturnToFocus={() => {
-          setShowUnlock(false);
-          // Record distraction in backend
-          if (backendSessionId) {
-            setDistractionCount((prev) => prev + 1);
-            focusService.recordDistraction(backendSessionId);
-          }
-        }}
-        onConfirmUnlock={() => {
-          setShowUnlock(false);
-          handleStop();
-        }}
-        onDismiss={() => setShowUnlock(false)}
-      />
     </View>
   );
 }
@@ -584,25 +600,25 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
-    alignItems: 'center',
+    alignItems: "center",
   },
   glow: {
-    position: 'absolute',
+    position: "absolute",
     width: 280,
     height: 280,
     borderRadius: 140,
-    top: '25%',
-    alignSelf: 'center',
+    top: "25%",
+    alignSelf: "center",
     opacity: 0.12,
   },
   glowTeal: { backgroundColor: COLORS.primary },
-  glowOrange: { backgroundColor: '#f97316' },
+  glowOrange: { backgroundColor: "#f97316" },
 
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
     paddingHorizontal: 20,
     paddingTop: 52,
     marginBottom: 8,
@@ -614,8 +630,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   statsBtn: {
     width: 40,
@@ -624,13 +640,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  topCenter: { alignItems: 'center', gap: 4 },
+  topCenter: { alignItems: "center", gap: 4 },
   subjectBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     backgroundColor: COLORS.surface,
     borderWidth: 2,
@@ -644,30 +660,30 @@ const styles = StyleSheet.create({
   },
   subjectName: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.text,
   },
   modeLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
+    fontWeight: "700",
+    textTransform: "uppercase",
     letterSpacing: 1.5,
   },
   phaseLabel: {
     fontSize: 13,
     color: COLORS.textSecondary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 
   readyMessage: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 16,
     marginBottom: 8,
   },
   readyText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#f97316',
+    fontWeight: "700",
+    color: "#f97316",
     marginBottom: 4,
   },
   readyHint: {
@@ -676,7 +692,7 @@ const styles = StyleSheet.create({
   },
 
   statsWrap: {
-    width: '100%',
+    width: "100%",
     paddingHorizontal: 20,
     marginTop: 16,
     marginBottom: 32,
@@ -685,25 +701,25 @@ const styles = StyleSheet.create({
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
     padding: SPACING.lg,
-    maxHeight: '85%',
+    maxHeight: "85%",
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: SPACING.md,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.text,
   },
   modalSubtitle: {
@@ -723,43 +739,43 @@ const styles = StyleSheet.create({
     maxHeight: 400,
   },
   subjectGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: SPACING.md,
   },
   subjectCard: {
-    width: '47%',
+    width: "47%",
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    alignItems: 'center',
+    alignItems: "center",
     gap: SPACING.sm,
     minHeight: 140,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   subjectIconBox: {
     width: 56,
     height: 56,
     borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   subjectCardIcon: {
     fontSize: 28,
   },
   subjectCardName: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.text,
-    textAlign: 'center',
+    textAlign: "center",
   },
   customBadge: {
     fontSize: 9,
     color: COLORS.primary,
-    textTransform: 'uppercase',
-    fontWeight: '700',
+    textTransform: "uppercase",
+    fontWeight: "700",
     letterSpacing: 0.5,
   },
   startIndicator: {
@@ -770,13 +786,13 @@ const styles = StyleSheet.create({
   },
   startText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#fff',
-    textTransform: 'uppercase',
+    fontWeight: "700",
+    color: "#fff",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   addCard: {
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     borderWidth: 2,
     borderColor: COLORS.primary,
     backgroundColor: `${COLORS.primary}10`,
@@ -785,26 +801,26 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: `${COLORS.primary}20`,
   },
   addCardText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.primary,
   },
 
   // Add Subject Modal
   addSubjectModal: {
-    maxHeight: '70%',
+    maxHeight: "70%",
   },
   formSection: {
     marginBottom: SPACING.lg,
   },
   formLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.text,
     marginBottom: SPACING.sm,
   },
@@ -827,8 +843,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.border,
     borderRadius: RADIUS.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconOptionSelected: {
     borderColor: COLORS.primary,
@@ -838,8 +854,8 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   colorGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: SPACING.sm,
   },
   colorOption: {
@@ -847,7 +863,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: RADIUS.md,
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   colorOptionSelected: {
     borderColor: COLORS.text,
@@ -857,12 +873,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderRadius: RADIUS.md,
     padding: SPACING.md,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: SPACING.md,
   },
   addButtonText: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: "700",
+    color: "#fff",
   },
 });

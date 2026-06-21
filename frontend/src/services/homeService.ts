@@ -195,7 +195,7 @@ class HomeService {
    */
   async getHomeData(userId: string): Promise<HomeData> {
     try {
-      const response = await apiCall('/home', 'GET');
+      const response = (await apiCall('/home', 'GET')) as { userStats: any; petStatus: any; dailyChallenges: any[]; streakInfo: { currentStreak: number; bestStreak: number; todayDone: boolean } };
       
       // Convert backend response to frontend format
       const userStats: UserStats = {

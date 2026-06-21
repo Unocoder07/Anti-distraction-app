@@ -45,8 +45,9 @@ public class AuthService {
 
     @Transactional
     public AuthResponse signUp(SignUpRequest request) {
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
         // Check if email exists
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new RuntimeException("Email already registered");
         }
 
@@ -59,7 +60,7 @@ public class AuthService {
         String avatarUrl = "https://api.dicebear.com/7.x/avataaars/svg?seed=" + request.getUsername();
 
         // Create user
-        User user = new User(request.getUsername(), request.getEmail(),
+        User user = new User(request.getUsername(), normalizedEmail,
                 passwordEncoder.encode(request.getPassword()), avatarUrl, false);
 
         user = userRepository.save(user);
@@ -89,16 +90,17 @@ public class AuthService {
     }
 
     public AuthResponse signIn(AuthRequest request) {
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
         // Authenticate
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
+                        normalizedEmail,
                         request.getPassword()
                 )
         );
 
         // Get user
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         // Update last active
@@ -116,7 +118,7 @@ public class AuthService {
     }
 
     public User getUserByEmail(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmail(email.trim().toLowerCase())
                 .orElseThrow(() -> new RuntimeException("User not found"));
     }
 }

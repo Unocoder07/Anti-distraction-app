@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuthStore } from '@/src/store/authStore';
+import { useAuthStore } from '@/src/store';
 
 export default function RootLayout() {
   return (

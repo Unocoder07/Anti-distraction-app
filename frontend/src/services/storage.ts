@@ -19,6 +19,7 @@ export const STORAGE_KEYS = {
   CUSTOM_SUBJECTS: 'custom_subjects',
   SUBJECT_STUDY_DATA: 'subject_study_data',
   SESSION_DURATION: 'session_duration',
+  SHIELD_MODE_ENABLED: 'shield_mode_enabled',
 } as const;
 
 export const storage = {

@@ -3,22 +3,26 @@ import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
 import { focusService } from '@/src/services/focusService';
 import { useAuthStore } from '@/src/store/authStore';
-import type { SubjectStudyData } from '@/src/types';
+import type { FocusSession, SubjectStudyData } from '@/src/types';
 import { router } from 'expo-router';
-import { ArrowLeft, BookOpen, ChevronRight, Clock, TrendingUp } from 'lucide-react-native';
+import { ArrowLeft, BookOpen, ChevronRight, Clock, TrendingUp, Calendar, Zap, Coins } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function StudyHistoryScreen() {
   const { user } = useAuthStore();
   const [subjects, setSubjects] = useState<SubjectStudyData[]>([]);
+  const [sessions, setSessions] = useState<FocusSession[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const data = await focusService.getSubjectStudyData(user.userId);
+      const [data, userSessions] = await Promise.all([
+        focusService.getSubjectStudyData(user.userId),
+        focusService.getUserSessions(user.userId, 50),
+      ]);
       const mapped: SubjectStudyData[] = data.map((s) => ({
         subjectId: s.subjectId,
         subjectName: s.subjectName,
@@ -28,6 +32,21 @@ export default function StudyHistoryScreen() {
         sessionsHistory: [],
       }));
       setSubjects(mapped.sort((a, b) => b.totalFocusTime - a.totalFocusTime));
+
+      const mappedSessions: FocusSession[] = userSessions.map((s) => ({
+        id: s.id,
+        startTime: s.startTime.getTime(),
+        endTime: s.endTime?.getTime(),
+        duration: (s.actualDuration || s.duration) * 60,
+        cyclesCompleted: s.cyclesCompleted,
+        totalCycles: s.cycles,
+        coinsEarned: s.focusPointsEarned,
+        status: s.status === 'completed' ? 'completed' : s.status === 'broken' ? 'failed' : 'active',
+        interruptions: s.distractionCount,
+        subjectId: s.subjectId,
+        subjectName: s.subject,
+      }));
+      setSessions(mappedSessions);
     } catch (error) {
       console.error('Error loading study history:', error);
     } finally {
@@ -58,6 +77,15 @@ export default function StudyHistoryScreen() {
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
     return date.toLocaleDateString();
+  };
+
+  const formatTime12Hour = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
   };
 
   const totalStudyTime = subjects.reduce((sum, s) => sum + s.totalFocusTime, 0);
@@ -148,6 +176,81 @@ export default function StudyHistoryScreen() {
             </Pressable>
           ))
         )}
+
+        {/* Recent Sessions */}
+        <Text style={[styles.sectionTitle, { marginTop: SPACING.xl }]}>Recent Sessions</Text>
+        
+        {sessions.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No recent sessions to display.</Text>
+          </View>
+        ) : (
+          sessions.map((session, index) => (
+            <View key={session.id} style={styles.sessionCard}>
+              <View style={styles.sessionHeader}>
+                <View style={styles.sessionNumber}>
+                  <Text style={styles.sessionNumberText}>#{sessions.length - index}</Text>
+                </View>
+                <View style={styles.sessionHeaderInfo}>
+                  <View style={styles.sessionDateRow}>
+                    <BookOpen size={14} color={COLORS.primary} />
+                    <Text style={styles.sessionDate}>{session.subjectName || 'Subject'}</Text>
+                  </View>
+                  <Text style={styles.sessionTime}>
+                    {formatDate(session.startTime)} · {formatTime12Hour(session.startTime)}
+                    {session.endTime && ` - ${formatTime12Hour(session.endTime)}`}
+                  </Text>
+                </View>
+                <View style={[
+                  styles.sessionStatus,
+                  session.status === 'completed' && styles.sessionStatusCompleted,
+                  session.status === 'failed' && styles.sessionStatusFailed,
+                ]}>
+                  <Text style={[
+                    styles.sessionStatusText,
+                    session.status === 'completed' && styles.sessionStatusTextCompleted,
+                    session.status === 'failed' && styles.sessionStatusTextFailed,
+                  ]}>
+                    {session.status === 'completed' ? '✓' : '✗'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.sessionStatsContainer}>
+                <View style={styles.sessionStat}>
+                  <Clock size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.sessionStatLabel}>Duration</Text>
+                  <Text style={styles.sessionStatValue}>{formatTime(session.duration)}</Text>
+                </View>
+                <View style={styles.sessionDivider} />
+                <View style={styles.sessionStat}>
+                  <Zap size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.sessionStatLabel}>Cycles</Text>
+                  <Text style={styles.sessionStatValue}>
+                    {session.cyclesCompleted}/{session.totalCycles}
+                  </Text>
+                </View>
+                <View style={styles.sessionDivider} />
+                <View style={styles.sessionStat}>
+                  <Coins size={16} color="#f59e0b" />
+                  <Text style={styles.sessionStatLabel}>Earned</Text>
+                  <Text style={[styles.sessionStatValue, { color: '#f59e0b' }]}>
+                    {session.coinsEarned} FC
+                  </Text>
+                </View>
+              </View>
+
+              {session.interruptions > 0 && (
+                <View style={styles.interruptionBadge}>
+                  <Text style={styles.interruptionText}>
+                    ⚠️ {session.interruptions} interruption{session.interruptions !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ))
+        )}
+
       </ScrollView>
     </View>
   );
@@ -299,5 +402,122 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: COLORS.primary,
+  },
+  sessionCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.md,
+  },
+  sessionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  sessionNumber: {
+    width: 36,
+    height: 36,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sessionNumberText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  sessionHeaderInfo: {
+    flex: 1,
+  },
+  sessionDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sessionDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  sessionTime: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  sessionStatus: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  sessionStatusCompleted: {
+    backgroundColor: 'rgba(16,185,129,0.1)',
+    borderColor: '#10b981',
+  },
+  sessionStatusFailed: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderColor: '#ef4444',
+  },
+  sessionStatusText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+  },
+  sessionStatusTextCompleted: {
+    color: '#10b981',
+  },
+  sessionStatusTextFailed: {
+    color: '#ef4444',
+  },
+  sessionStatsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+  },
+  sessionStat: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  sessionStatLabel: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sessionStatValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  sessionDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: COLORS.border,
+  },
+  interruptionBadge: {
+    backgroundColor: 'rgba(245,158,11,0.1)',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderRadius: RADIUS.sm,
+    padding: SPACING.xs,
+    alignItems: 'center',
+  },
+  interruptionText: {
+    fontSize: 11,
+    color: '#f59e0b',
+    fontWeight: '600',
   },
 });

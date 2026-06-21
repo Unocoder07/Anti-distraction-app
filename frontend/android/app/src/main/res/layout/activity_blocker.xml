@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp"
+    android:background="#FFFFFF">
+
+    <!-- Blocking Icon -->
+    <TextView
+        android:id="@+id/block_icon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🛡️"
+        android:textSize="80sp"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Blocked App Name -->
+    <TextView
+        android:id="@+id/blocked_app_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="App Name"
+        android:textSize="28sp"
+        android:textColor="#1F2937"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Blocking Status -->
+    <TextView
+        android:id="@+id/blocking_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⚠️ Blocked During Focus Session"
+        android:textSize="16sp"
+        android:textColor="#EF4444"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Message -->
+    <TextView
+        android:id="@+id/blocked_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="This app is blocked during your focus session.\n\nStay focused! You can do this! 💪"
+        android:textSize="16sp"
+        android:textColor="#6B7280"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:layout_marginBottom="40dp" />
+
+    <!-- Go Back Button -->
+    <Button
+        android:id="@+id/btn_go_back"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="← Return to Sankalai"
+        android:textSize="16sp"
+        android:textColor="#FFFFFF"
+        android:background="@drawable/button_primary"
+        android:layout_marginBottom="12dp"
+        android:textAllCaps="false"
+        style="?android:attr/borderlessButtonStyle" />
+
+    <!-- End Session Button -->
+    <Button
+        android:id="@+id/btn_end_session"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="End Session (-50 coins)"
+        android:textSize="14sp"
+        android:textColor="#EF4444"
+        android:background="@drawable/button_secondary"
+        android:textAllCaps="false"
+        style="?android:attr/borderlessButtonStyle" />
+
+    <!-- Motivation Text -->
+    <TextView
+        android:id="@+id/motivation_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Your goals are waiting for you! 🎯"
+        android:textSize="14sp"
+        android:textColor="#9CA3AF"
+        android:layout_marginTop="24dp" />
+
+</LinearLayout>
