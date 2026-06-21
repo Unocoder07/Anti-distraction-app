@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="75be68cb-114f-4bcc-af7c-4f2be17754b4" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/backend/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/Dockerfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/docker-compose.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/pom.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/SankalaiBackendApplication.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/config/SecurityConfig.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/controller/AuthController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/controller/BlockingController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/controller/FocusController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/controller/HomeController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/controller/ProfileController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/AchievementDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/AuthRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/AuthResponse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/BlockingDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/BreakSessionRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/CompleteSessionRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/FocusDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/FocusSessionDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/FocusStatsDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/HomeDataResponse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/LeaderboardEntryDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/ProfileDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/ProfileUpdateRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/SessionCompletionRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/SessionCompletionResponse.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/SignUpRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/StartSessionRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/SubjectStudyDataDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/dto/UserProfileDTO.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/entity/Achievement.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/entity/BlockedApp.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/entity/BlockingLog.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/entity/BlockingSession.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/entity/DailyChallenge.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/entity/FocusSession.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/entity/PetStatus.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/entity/User.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/entity/UserStats.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/exception/GlobalExceptionHandler.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/repository/AchievementRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/repository/BlockedAppRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/repository/BlockingLogRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/repository/BlockingSessionRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/repository/DailyChallengeRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/repository/FocusSessionRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/repository/PetStatusRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/repository/UserRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/repository/UserStatsRepository.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/security/CustomUserDetailsService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/security/JwtAuthenticationFilter.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/security/JwtUtil.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/service/AuthService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/service/BlockingService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/service/FocusService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/service/HomeService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/sankalai/service/ProfileService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/resources/application.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/start.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/.claude/settings.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/.vscode/c_cpp_properties.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/.vscode/extensions.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/.vscode/react_native_includes/folly/Format.h" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/.vscode/react_native_includes/glog/logging.h" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/.vscode/settings.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/build.gradle" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/debug.keystore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/proguard-rules.pro" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/debug/AndroidManifest.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/debugOptimized/AndroidManifest.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/jennise/sankalai/MainActivity.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/java/com/jennise/sankalai/MainApplication.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-hdpi/splashscreen_logo.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-mdpi/splashscreen_logo.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xhdpi/splashscreen_logo.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxhdpi/splashscreen_logo.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable-xxxhdpi/splashscreen_logo.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable/ic_launcher_background.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/drawable/rn_edit_text_material.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-hdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-mdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xhdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/colors.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/strings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/app/src/main/res/values/styles.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/build.gradle" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/gradle.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/gradlew" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/gradlew.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/android/settings.gradle" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/(tabs)/_layout.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/(tabs)/analytics.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/(tabs)/blocked.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/(tabs)/focus.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/(tabs)/index.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/(tabs)/profile.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/_layout.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/_splash.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/achievement-levels.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/auth/_layout.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/auth/exam-selection.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/auth/forgot-password.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/auth/login.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/auth/signup.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/auth/subject-selection.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/index.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/settings.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/study-history.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/app/subject-detail.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/babel.config.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/build-log.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/eas.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/eslint-report.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/eslint.config.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/.gradle/8.9/checksums/checksums.lock" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/.gradle/8.9/dependencies-accessors/gc.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/.gradle/8.9/fileChanges/last-build.bin" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/.gradle/8.9/fileHashes/fileHashes.lock" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/.gradle/8.9/gc.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/.gradle/buildOutputCleanup/cache.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/.gradle/vcs-1/gc.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/CMakeLists.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/build.gradle" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/cpp/AppBlockerModule.cpp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/java/com/sankalai/appblocker/AppBlockerModule.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/java/com/sankalai/appblocker/AppBlockerService.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/java/com/sankalai/appblocker/BlockerActivity.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/java/com/sankalai/appblocker/BlockingSessionManager.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/res/drawable/button_primary.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/res/drawable/button_secondary.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/res/layout/activity_blocker.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/res/values/strings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/android/src/main/res/xml/accessibility_service_config.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/modules/app-blocker/src/AppBlockerModule.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/plugins/withAppBlocker.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/powershell.cmd" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/analytics/FocusTrend.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/analytics/StatsGrid.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/analytics/WeeklyChart.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/analytics/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/blocked/ActiveSessionCard.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/blocked/BlockedAppCard.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/blocked/BlockingSessionDialog.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/blocked/NativeBlockingSetup.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/blocked/UnlockDialog.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/blocked/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/common/AppHeader.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/common/CustomCard.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/common/GradientButton.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/common/ScreenContainer.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/focus/FocusTimer.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/focus/SessionControls.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/focus/SessionStats.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/focus/SubjectStats.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/focus/TimeAdjuster.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/focus/focusStore.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/focus/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/home/DailyGoalCard.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/home/FocusCoinCard.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/home/PetCard.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/home/StatsGrid.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/home/StreakCard.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/home/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/profile/AchievementCard.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/profile/ProfileMenu.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/profile/SubjectManager.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/components/profile/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/config/api.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/constants/colors.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/constants/fonts.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/constants/mockData.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/constants/spacing.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/analyticsService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/appBlockerService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/appDetectionService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/appMonitorService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/authService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/blockingService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/focusService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/homeService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/installedAppsService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/nativeAppBlocker.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/nativeBlockingService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/profileService.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/services/storage.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/store/authStore.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/store/blockingStore.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/store/homeStore.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/store/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/types/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/utils/haptics.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/utils/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/utils/math.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/utils/time.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/src/utils/validation.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/tsconfig.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.claude/settings.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.vscode/extensions.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.vscode/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/.vscode/settings.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AGENTS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/(tabs)/_layout.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/(tabs)/explore.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/(tabs)/index.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/_layout.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/modal.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/android-icon-background.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/android-icon-foreground.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/android-icon-monochrome.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/favicon.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/icon.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/partial-react-logo.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/react-logo.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/react-logo@2x.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/react-logo@3x.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/splash-icon.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/external-link.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/haptic-tab.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/hello-wave.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/parallax-scroll-view.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/themed-text.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/themed-view.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/ui/collapsible.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/ui/icon-symbol.ios.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/ui/icon-symbol.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/constants/theme.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/eslint.config.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/hooks/use-color-scheme.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/hooks/use-color-scheme.web.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/hooks/use-theme-color.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/reset-project.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tsconfig.json" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="55005" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProjectId" id="3Ec4KfTHRmTxthYsv6G7bDC9QO2" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-2fc7cc6b9a17-intellij.indexing.shared.core-IU-253.33813.25" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="75be68cb-114f-4bcc-af7c-4f2be17754b4" name="Default Changelist" comment="" />
+      <created>1780464462335</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1780464462335</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="oldMeFiltersMigrated" value="true" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
+  </component>
+  <component name="ai.zencoder.plugin.mcp">
+    <option name="internalToolsState" value="{&quot;file_search&quot;:true,&quot;list_resources&quot;:true,&quot;fulltext_search&quot;:true,&quot;read_resource&quot;:true}" />
+  </component>
+</project>

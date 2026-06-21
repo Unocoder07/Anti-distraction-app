@@ -17,6 +17,8 @@ export interface AuthResponse {
   username: string;
   email: string;
   avatar?: string;
+  exam?: string;
+  examName?: string;
   message?: string;
 }
 

@@ -1,51 +1,78 @@
-// Route: "/blocked-apps" → BlockedApps
 import { ActiveSessionCard } from '@/src/components/blocked/ActiveSessionCard';
 import type { BlockedApp } from '@/src/components/blocked/BlockedAppCard';
 import { BlockedAppCard } from '@/src/components/blocked/BlockedAppCard';
 import { BlockingSessionDialog } from '@/src/components/blocked/BlockingSessionDialog';
+import { NativeBlockingSetup } from '@/src/components/blocked/NativeBlockingSetup';
 import { UnlockDialog } from '@/src/components/blocked/UnlockDialog';
 import { COLORS } from '@/src/constants/colors';
-import { MOCK_BLOCKED_APPS } from '@/src/constants/mockData';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
-import { appMonitorService } from '@/src/services/appMonitorService';
 import { DEFAULT_SESSION_DURATION } from '@/src/services/blockingService';
-import { getAllInstalledApps } from '@/src/services/installedAppsService';
-import { storage, STORAGE_KEYS } from '@/src/services/storage';
+import {
+  categorizeApps,
+  getRecommendedBlockingApps,
+  packageNameToId,
+  SHIELD_CATEGORIES,
+} from '@/src/services/installedAppsService';
+import { nativeBlockingService } from '@/src/services/nativeBlockingService';
 import { useAuthStore, useBlockingStore } from '@/src/store';
-import { Info, Monitor, Shield, Smartphone } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Info, RefreshCw, Shield, Smartphone } from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
 export default function BlockedAppsScreen() {
   const { user } = useAuthStore();
-  const { apps, activeSessions, loadBlockedApps, toggleApp, startSession, breakSession, completeSession, cleanupStaleSessions, saveUserBlockedApps } = useBlockingStore();
+  const {
+    apps,
+    activeSessions,
+    loadBlockedApps,
+    loadLocalBlockedApps,
+    toggleApp,
+    toggleLocalApp,
+    startSession,
+    breakSession,
+    completeSession,
+    cleanupStaleSessions,
+    saveUserBlockedApps,
+    saveLocalBlockedApps,
+    setApps,
+  } = useBlockingStore();
 
-  const [detoxMode, setDetoxMode] = useState(false);
   const [unlockTarget, setUnlockTarget] = useState<BlockedApp | null>(null);
   const [sessionTarget, setSessionTarget] = useState<BlockedApp | null>(null);
   const [sessionDuration] = useState(DEFAULT_SESSION_DURATION);
-  const [detectingApps, setDetectingApps] = useState(false);
-  const [detectedAppsCount, setDetectedAppsCount] = useState(0);
+  const [scanning, setScanning] = useState(false);
+  const [detectedCount, setDetectedCount] = useState(0);
+  const [permissionsReady, setPermissionsReady] = useState(false);
+  const [startingSession, setStartingSession] = useState(false);
 
-  // Load apps from storage on mount
-  useEffect(() => {
-    if (user) {
-      initializeApps();
-    }
-    loadDetoxMode();
-  }, [user]);
+  const mergeWithSavedStatus = useCallback(
+    (detected: BlockedApp[], saved: BlockedApp[]): BlockedApp[] => {
+      const savedByPackage = new Map(saved.map((a) => [a.packageName, a]));
+      return detected.map((app) => {
+        const existing = savedByPackage.get(app.packageName);
+        return existing ? { ...app, blocked: existing.blocked, id: existing.id } : app;
+      });
+    },
+    []
+  );
 
-  const initializeApps = async () => {
-    setDetectingApps(true);
-
+  const scanDeviceApps = useCallback(async () => {
+    setScanning(true);
     try {
-      // 1. Get ONLY apps that are actually installed on the student's phone
-      const installedApps = await getAllInstalledApps();
+      const installed = await getRecommendedBlockingApps();
+      setDetectedCount(installed.length);
 
-      console.log(`📱 Found ${installedApps.length} matched distracting apps installed on device`);
-
-      // 2. Convert to BlockedApp format
-      const detectedBlockedApps: BlockedApp[] = installedApps.map(app => ({
-        id: parseInt(app.id) || Math.floor(Math.random() * 1000000), // Ensure we have an ID
+      const detectedApps: BlockedApp[] = installed.map((app) => ({
+        id: packageNameToId(app.packageName),
         name: app.name,
         category: app.category,
         icon: app.icon || '📱',
@@ -54,261 +81,200 @@ export default function BlockedAppsScreen() {
         bundleId: app.bundleId,
       }));
 
-      setDetectedAppsCount(detectedBlockedApps.length);
+      if (detectedApps.length === 0) {
+        setApps([]);
+        if (user) {
+          await saveUserBlockedApps(user.userId, []);
+        } else {
+          await saveLocalBlockedApps([]);
+        }
+        return;
+      }
 
       if (user) {
-        // 3. Load current saved apps from backend
-        const savedApps = apps.length > 0 ? apps : [];
-
-        // 4. Merge: keep status of already saved apps, add new detected ones
-        const mergedApps = [...detectedBlockedApps];
-
-        // Update merged list with any existing "blocked" statuses from backend
-        savedApps.forEach(saved => {
-          const index = mergedApps.findIndex(a => a.packageName === saved.packageName);
-          if (index !== -1) {
-            mergedApps[index].blocked = saved.blocked;
-          }
-        });
-
-        console.log('💾 Saving/Updating detected apps to backend...');
-        await saveUserBlockedApps(user.userId, mergedApps);
+        if (apps.length === 0) {
+          await loadBlockedApps(user.userId);
+        }
+        const savedApps = useBlockingStore.getState().apps;
+        const merged = mergeWithSavedStatus(detectedApps, savedApps);
+        await saveUserBlockedApps(user.userId, merged);
         await loadBlockedApps(user.userId);
       } else {
-        await loadLocalApps(detectedBlockedApps);
+        await loadLocalBlockedApps();
+        const savedApps = useBlockingStore.getState().apps;
+        const merged = mergeWithSavedStatus(detectedApps, savedApps);
+        await saveLocalBlockedApps(merged);
       }
     } catch (error) {
-      console.error('Error initializing apps:', error);
-      Alert.alert('Detection Error', 'Failed to scan for installed apps. Please check permissions.');
+      console.error('Error scanning device apps:', error);
+      Alert.alert('Scan Failed', 'Could not scan installed apps. Please try again.');
     } finally {
-      setDetectingApps(false);
+      setScanning(false);
     }
-  };
+  }, [apps, user, mergeWithSavedStatus, loadBlockedApps, loadLocalBlockedApps, saveUserBlockedApps, saveLocalBlockedApps, setApps]);
 
-  const loadLocalApps = async (defaultApps: BlockedApp[] = MOCK_BLOCKED_APPS) => {
-    try {
-      const saved = await storage.load<BlockedApp[]>(STORAGE_KEYS.BLOCKED_APPS);
-      if (!saved || saved.length === 0) {
-        await storage.save(STORAGE_KEYS.BLOCKED_APPS, defaultApps);
-      }
-    } catch (error) {
-      console.error('Error loading blocked apps:', error);
-    }
-  };
+  useEffect(() => {
+    scanDeviceApps();
+    checkPermissions();
+  }, []);
 
-  const loadDetoxMode = async () => {
-    try {
-      const settings = await storage.load<{ detoxMode: boolean }>(STORAGE_KEYS.SETTINGS);
-      if (settings?.detoxMode !== undefined) {
-        setDetoxMode(settings.detoxMode);
-      }
-    } catch (error) {
-      console.error('Error loading detox mode:', error);
-    }
-  };
-
-  const saveDetoxMode = async (enabled: boolean) => {
-    try {
-      const settings = (await storage.load<any>(STORAGE_KEYS.SETTINGS)) || {};
-      settings.detoxMode = enabled;
-      await storage.save(STORAGE_KEYS.SETTINGS, settings);
-      setDetoxMode(enabled);
-    } catch (error) {
-      console.error('Error saving detox mode:', error);
-    }
+  const checkPermissions = async () => {
+    if (Platform.OS !== 'android') return;
+    const perms = await nativeBlockingService.checkPermissions();
+    setPermissionsReady(perms.overlay && perms.accessibility && perms.usageStats);
   };
 
   const handleToggleApp = async (id: number) => {
-    const app = apps.find(a => a.id === id);
+    const app = apps.find((a) => a.id === id);
     if (!app) return;
 
     if (!app.blocked) {
-      // Show warning before blocking
       Alert.alert(
-        '🛡️ Block this app?',
-        `Are you sure you want to block ${app.name}?\n\n` +
-        `⚠️ WARNING:\n` +
-        `• Completing a session: +20 Focus Coins\n` +
-        `• Breaking a session: -50 Focus Coins\n\n` +
-        `The block is VERY strong and cannot be easily undone during a session.`,
+        'Block this app?',
+        `Add ${app.name} to your Shield list?\n\nDuring a session, this app will be physically locked — you won't be able to open it even by switching apps.`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Yes, Block it',
+            text: 'Block',
             style: 'destructive',
             onPress: async () => {
               if (user) {
                 await toggleApp(user.userId, id);
               } else {
-                const currentApps = apps.length > 0 ? apps : MOCK_BLOCKED_APPS;
-                const updated = currentApps.map((a) => (a.id === id ? { ...a, blocked: !a.blocked } : a));
-                await storage.save(STORAGE_KEYS.BLOCKED_APPS, updated);
+                await toggleLocalApp(id);
               }
-            }
-          }
+            },
+          },
         ]
       );
-    } else {
-      // Simple toggle if already blocked (unblocking from list)
-      if (user) {
-        await toggleApp(user.userId, id);
-      } else {
-        const currentApps = apps.length > 0 ? apps : MOCK_BLOCKED_APPS;
-        const updated = currentApps.map((a) => (a.id === id ? { ...a, blocked: !a.blocked } : a));
-        await storage.save(STORAGE_KEYS.BLOCKED_APPS, updated);
-      }
-    }
-  };
-
-  const handleDetoxToggle = async (value: boolean) => {
-    await saveDetoxMode(value);
-    if (value && user) {
-      // Block all apps when detox mode is enabled
-      const updated = apps.map((a) => ({ ...a, blocked: true }));
-      await storage.save(STORAGE_KEYS.BLOCKED_APPS, updated);
-    }
-  };
-
-  const handleStartSession = async (app: BlockedApp, duration: number) => {
-    if (!user) {
-      Alert.alert('Login Required', 'Please login to start blocking sessions and earn rewards.');
-      setSessionTarget(null);
       return;
     }
 
-    try {
-      await startSession(user.userId, app.id, app.name, duration);
-      setSessionTarget(null);
-
-      // Reload to show active session
-      await loadBlockedApps(user.userId);
-
-      // Start monitoring for app switches - monitor ALL blocked apps
-      const blockedAppsForMonitoring = displayApps
-        .filter(a => a.blocked)
-        .map(a => ({
-          packageName: a.packageName || '',
-          appName: a.name,
-        }));
-
-      await appMonitorService.startMonitoring(
-        blockedAppsForMonitoring,
-        (appName) => {
-          console.log(`⚠️ User attempted to open: ${appName}`);
-          // Could track this in Firebase for analytics
-        }
-      );
-
-      Alert.alert(
-        '🛡️ Blocking Session Started!',
-        `${app.name} and ALL blocked apps are now locked for ${duration} minutes.\n\n` +
-        `⚠️ HOW THIS WORKS:\n\n` +
-        `✅ You can switch apps to:\n` +
-        `   • Attend calls\n` +
-        `   • Reply to important messages\n` +
-        `   • Use productivity apps\n\n` +
-        `❌ You CANNOT open:\n` +
-        `   • ${displayApps.filter(a => a.blocked).map(a => a.name).join(', ')}\n\n` +
-        `💡 If you try to open ANY blocked app:\n` +
-        `   • You'll get a warning when you return\n` +
-        `   • Choose: Admit & lose 50 FP OR claim you stayed focused\n\n` +
-        `🎯 Complete the session = Earn 20 FP!\n\n` +
-        `⏱️ Session ends in ${duration} minutes. Stay strong!`,
-        [{ text: 'Start Focus Session!' }]
-      );
-    } catch (error) {
-      console.error('Error starting session:', error);
-      Alert.alert('Error', 'Failed to start blocking session. Please try again.');
+    if (user) {
+      await toggleApp(user.userId, id);
+    } else {
+      await toggleLocalApp(id);
     }
   };
 
-  const handleUnlockAttempt = async (app: BlockedApp) => {
-    const session = activeSessions.get(app.id);
-    if (session && user) {
+  const getBlockedAppsForSession = () =>
+    displayApps
+      .filter((a) => a.blocked && a.packageName)
+      .map((a) => ({ packageName: a.packageName!, appName: a.name }));
+
+  const handleStartShieldSession = async (triggerApp?: BlockedApp) => {
+    const blockedApps = displayApps.filter((a) => a.blocked);
+    if (blockedApps.length === 0) {
+      Alert.alert('No Apps Selected', 'Toggle at least one app to BLOCKED before starting a Shield session.');
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      const hasPermissions = await nativeBlockingService.requestPermissions();
+      await checkPermissions();
+      if (!hasPermissions) {
+        Alert.alert(
+          'Permissions Required',
+          'Shield needs Accessibility, Overlay, and Usage Access permissions to physically block apps on your device.'
+        );
+        return;
+      }
+    }
+
+    const sessionApp = triggerApp ?? blockedApps[0];
+    setStartingSession(true);
+    setSessionTarget(null);
+
+    try {
+      if (user) {
+        await startSession(user.userId, sessionApp.id, sessionApp.name, sessionDuration);
+        await loadBlockedApps(user.userId);
+      } else {
+        Alert.alert(
+          'Sign In Required',
+          'Please sign in to start a Shield session and earn Focus Coins.'
+        );
+        return;
+      }
+
+      const blockedNames = blockedApps.map((a) => a.name).join(', ');
+      Alert.alert(
+        'Shield Active',
+        `Physical blocking is ON for ${sessionDuration} minutes.\n\nLocked apps:\n${blockedNames}\n\nIf you try to open any of these apps, you will be sent back immediately.`,
+        [{ text: 'Stay Focused' }]
+      );
+    } catch (error: any) {
+      Alert.alert('Session Failed', error?.message ?? 'Could not start Shield session.');
+    } finally {
+      setStartingSession(false);
+    }
+  };
+
+  const handleUnlockAttempt = (app: BlockedApp) => {
+    if (activeSessions.has(app.id) && user) {
       setUnlockTarget(app);
     }
   };
 
   const handleConfirmUnlock = async (app: BlockedApp) => {
     const session = activeSessions.get(app.id);
-    if (session && user) {
-      try {
-        const fpLost = await breakSession(session.id, user.userId, app.id);
-        setUnlockTarget(null);
+    if (!session || !user) return;
 
-        // Stop monitoring
-        appMonitorService.stopMonitoring();
-
-        // Reload home data to reflect FP change
-        await loadBlockedApps(user.userId);
-
-        Alert.alert(
-          'Session Broken 💔',
-          `You lost ${fpLost} Focus Points for breaking your blocking session. Stay strong next time!`,
-          [{ text: 'I understand' }]
-        );
-      } catch (error) {
-        console.error('Error breaking session:', error);
-        Alert.alert('Error', 'Failed to break session. Please try again.');
-      }
+    try {
+      const fpLost = await breakSession(session.id, user.userId, app.id);
+      setUnlockTarget(null);
+      await loadBlockedApps(user.userId);
+      Alert.alert('Session Broken', `You lost ${fpLost} Focus Points. Stay strong next time!`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to break session. Please try again.');
     }
   };
 
   const handleSessionComplete = async (sessionId: string) => {
     if (!user) return;
+    const session = activeSessionsArray.find((s) => s.id === sessionId);
+    if (!session) return;
 
     try {
-      // Find the session to get appId
-      const session = activeSessionsArray.find(s => s.id === sessionId);
-      if (!session) return;
-
       const fpEarned = await completeSession(sessionId, user.userId, session.appId);
-
-      // Stop monitoring
-      appMonitorService.stopMonitoring();
-
-      // Reload sessions
       await loadBlockedApps(user.userId);
-
-      Alert.alert(
-        'Session Complete! 🎉',
-        `Congratulations! You earned ${fpEarned} Focus Points for completing your blocking session!`,
-        [{ text: 'Awesome!' }]
-      );
+      Alert.alert('Session Complete!', `You earned ${fpEarned} Focus Points. Great discipline!`);
     } catch (error) {
       console.error('Error completing session:', error);
     }
   };
 
-  const handleCleanupSessions = async () => {
+  const handleCleanupSessions = () => {
     if (!user) return;
-
-    Alert.alert(
-      'Clean Up Sessions?',
-      'This will remove all active blocking sessions without penalty. Use this to clear test/dummy sessions.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clean Up',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const count = await cleanupStaleSessions(user.userId);
-              await loadBlockedApps(user.userId);
-              Alert.alert('Cleaned Up', `Removed ${count} stale session(s)`);
-            } catch (error) {
-              console.error('Error cleaning up sessions:', error);
-              Alert.alert('Error', 'Failed to clean up sessions');
-            }
-          },
+    Alert.alert('Clean Up Sessions?', 'Remove all active sessions without penalty?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clean Up',
+        style: 'destructive',
+        onPress: async () => {
+          const count = await cleanupStaleSessions(user.userId);
+          await loadBlockedApps(user.userId);
+          Alert.alert('Done', `Removed ${count} session(s)`);
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const displayApps = apps.length > 0 ? apps : [];
+  const displayApps = apps;
   const blockedCount = displayApps.filter((a) => a.blocked).length;
   const activeSessionsArray = Array.from(activeSessions.values());
+  const hasActiveSession = activeSessionsArray.length > 0;
+  const grouped = categorizeApps(
+    displayApps.map((a) => ({
+      id: a.packageName ?? String(a.id),
+      name: a.name,
+      packageName: a.packageName ?? '',
+      bundleId: a.bundleId ?? '',
+      icon: a.icon,
+      category: a.category,
+      isSystemApp: false,
+    }))
+  );
 
   return (
     <ScrollView
@@ -316,50 +282,54 @@ export default function BlockedAppsScreen() {
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── Header ── */}
+      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Shield</Text>
-          <Text style={styles.subtitle}>Smart Focus Blocking System</Text>
+          <Text style={styles.subtitle}>Block social, video & gaming apps during focus</Text>
         </View>
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>{blockedCount} blocked</Text>
+        <View style={styles.headerRight}>
+          <Pressable style={styles.refreshBtn} onPress={scanDeviceApps} disabled={scanning}>
+            {scanning ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <RefreshCw size={16} color={COLORS.primary} />
+            )}
+          </Pressable>
+          {blockedCount > 0 && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{blockedCount} locked</Text>
+            </View>
+          )}
         </View>
       </View>
 
-      {/* ── Dopamine Detox Master Switch ── */}
-      <View style={[styles.detoxCard, detoxMode && styles.detoxCardActive]}>
-        <View style={styles.detoxTop}>
-          <View style={styles.detoxLeft}>
-            <View style={[styles.detoxIcon, detoxMode && styles.detoxIconActive]}>
-              <Shield size={20} color={detoxMode ? COLORS.primary : COLORS.textSecondary} />
-            </View>
-            <View>
-              <Text style={styles.detoxTitle}>Dopamine Detox Mode</Text>
-              <Text style={styles.detoxSub}>Strict mode enabled globally</Text>
-            </View>
-          </View>
-          <Switch
-            value={detoxMode}
-            onValueChange={handleDetoxToggle}
-            trackColor={{ false: COLORS.card, true: '#0d9488' }}
-            thumbColor={detoxMode ? COLORS.primary : COLORS.textSecondary}
-          />
-        </View>
+      {/* Native permissions setup */}
+      {Platform.OS === 'android' && !permissionsReady && (
+        <NativeBlockingSetup onSetupComplete={checkPermissions} />
+      )}
 
-        {detoxMode && (
-          <View style={styles.detoxFeatures}>
-            <FeatureRow icon={<Smartphone size={14} color={COLORS.primary} />} text="Grayscale Mode Active" />
-            <FeatureRow icon={<Monitor size={14} color={COLORS.primary} />} text="Short-video algorithmic blocking" />
-            <FeatureRow icon={<Info size={14} color={COLORS.primary} />} text="Notification suppression ON" />
+      {/* Activate Shield CTA */}
+      {blockedCount > 0 && !hasActiveSession && (
+        <Pressable
+          style={[styles.shieldCta, startingSession && styles.shieldCtaDisabled]}
+          onPress={() => setSessionTarget(displayApps.find((a) => a.blocked) ?? null)}
+          disabled={startingSession}
+        >
+          <Shield size={20} color="#fff" />
+          <View style={styles.shieldCtaText}>
+            <Text style={styles.shieldCtaTitle}>Activate Shield</Text>
+            <Text style={styles.shieldCtaSub}>
+              Lock {blockedCount} app{blockedCount > 1 ? 's' : ''} for {sessionDuration} min
+            </Text>
           </View>
-        )}
-      </View>
+        </Pressable>
+      )}
 
-      {/* ── Info Card ── */}
+      {/* Info card */}
       <View style={styles.infoCard}>
         <View style={styles.infoIconBox}>
-          {detectingApps ? (
+          {scanning ? (
             <ActivityIndicator size="small" color={COLORS.primary} />
           ) : (
             <Info size={16} color={COLORS.primary} />
@@ -367,55 +337,47 @@ export default function BlockedAppsScreen() {
         </View>
         <View style={styles.infoContent}>
           <Text style={styles.infoTitle}>
-            {detectingApps ? 'Scanning Device...' : detectedAppsCount > 0 ? '🛡️ How Shield Blocking Works' : '📱 App Detection Info'}
+            {scanning
+              ? 'Scanning your phone...'
+              : detectedCount > 0
+                ? `${detectedCount} apps found on your device`
+                : 'No distracting apps detected'}
           </Text>
           <Text style={styles.infoText}>
-            {detectingApps
-              ? 'Scanning your phone for social media, gaming, and entertainment apps...'
-              : detectedAppsCount > 0
-                ? `${detectedAppsCount} distracting apps found on your phone.\n\n` +
-                `📱 HOW IT WORKS:\n\n` +
-                `1️⃣ Toggle apps you want to BLOCK\n` +
-                `2️⃣ Tap blocked app to start session (e.g., 50 min)\n` +
-                `3️⃣ Session starts - ALL blocked apps are locked\n\n` +
-                `✅ YOU CAN:\n` +
-                `• Switch to other apps (calls, messages, productivity)\n` +
-                `• Use your phone normally\n\n` +
-                `⚠️ WARNING SYSTEM:\n` +
-                `• When you return, you'll be asked if you opened blocked apps\n` +
-                `• Be honest: Admit = -50 FP | Stay focused = +20 FP\n\n` +
-                `💪 Build SELF-CONTROL through accountability!`
-                : 'No distracting apps detected on your device.\n\n' +
-                `This could mean:\n` +
-                `• You don't have social media/gaming apps installed ✅\n` +
-                `• You're using Expo Go (requires EAS build for detection)\n` +
-                `• App detection needs to be enabled\n\n` +
-                `To enable full app detection:\n` +
-                `1. Build with EAS: eas build --profile development\n` +
-                `2. Install the APK on your device\n` +
-                `3. Grant necessary permissions\n\n` +
-                `Great job staying focused! 🎯`}
+            {scanning
+              ? 'Looking for installed social media and gaming apps...'
+              : detectedCount > 0
+                ? 'Only apps installed on YOUR phone are shown.\n\n' +
+                  '1. Toggle apps to BLOCKED\n' +
+                  '2. Tap Activate Shield\n' +
+                  '3. Blocked apps are physically locked — switching apps won\'t help\n\n' +
+                  'Calls and messages still work.'
+                : Platform.OS === 'android'
+                  ? 'No social media or gaming apps found on this device.\n\n' +
+                    'If you have them installed, rebuild the app:\n' +
+                    'npx expo run:android'
+                  : 'App blocking is available on Android only.'}
           </Text>
         </View>
       </View>
 
-      {/* ── Active Sessions ── */}
-      {activeSessionsArray.length > 0 && (
+      {/* Active sessions */}
+      {hasActiveSession && (
         <View style={styles.sessionsSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Active Blocking Sessions</Text>
+            <Text style={styles.sectionTitle}>Shield Active</Text>
             <View style={styles.sessionHeaderRight}>
               <View style={styles.sessionCountBadge}>
                 <Text style={styles.sessionCountText}>{activeSessionsArray.length}</Text>
               </View>
               <Text style={styles.cleanupButton} onPress={handleCleanupSessions}>
-                🧹
+                Clean
               </Text>
             </View>
           </View>
           <View style={styles.sessionsList}>
             {activeSessionsArray.map((session, index) => {
-              const app = displayApps.find(a => a.id === session.appId);
+              const app = displayApps.find((a) => a.id === session.appId);
               return (
                 <ActiveSessionCard
                   key={`${session.id}-${session.appId}-${index}`}
@@ -426,78 +388,79 @@ export default function BlockedAppsScreen() {
               );
             })}
           </View>
+          <View style={styles.activeShieldBanner}>
+            <Smartphone size={14} color={COLORS.primary} />
+            <Text style={styles.activeShieldText}>
+              {getBlockedAppsForSession().length} apps physically locked on your device
+            </Text>
+          </View>
         </View>
       )}
 
-      {/* ── App List Header ── */}
-      <View style={styles.listHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.listTitle}>
-            {displayApps.length > 0 ? 'Recommended Applications' : 'No Apps Detected'}
-          </Text>
-          <Text style={styles.listSub}>
-            {displayApps.length > 0
-              ? 'Showing all detected social media & gaming apps'
-              : 'Loading recommended apps...'}
-          </Text>
-        </View>
-      </View>
-
-      {/* ── App Cards ── */}
+      {/* App list by category */}
       {displayApps.length > 0 ? (
-        <View style={styles.appList}>
-          {displayApps.map((app) => {
-            const hasActiveSession = activeSessions.has(app.id);
-            return (
-              <View key={`app-${app.id}`}>
-                <BlockedAppCard
-                  app={app}
-                  onToggle={(id) => {
-                    // If there's an active session, show unlock dialog
-                    if (hasActiveSession) {
-                      setUnlockTarget(app);
-                    } else if (app.blocked) {
-                      // If app is blocked, start a session
-                      setSessionTarget(app);
-                    } else {
-                      // Otherwise toggle the app blocking status
-                      handleToggleApp(id);
-                    }
-                  }}
-                  focusActive={hasActiveSession}
-                  onUnlockAttempt={handleUnlockAttempt}
-                />
+        SHIELD_CATEGORIES.map((category) => {
+          const categoryApps = grouped[category];
+          if (categoryApps.length === 0) return null;
+
+          return (
+            <View key={category}>
+              <View style={styles.listHeader}>
+                <Text style={styles.listTitle}>{category}</Text>
+                <Text style={styles.listSub}>
+                  {categoryApps.length} installed
+                </Text>
               </View>
-            );
-          })}
-        </View>
-      ) : (
+              <View style={styles.appList}>
+                {categoryApps.map((installed) => {
+                  const app = displayApps.find((a) => a.packageName === installed.packageName)!;
+                  const appHasSession = activeSessions.has(app.id);
+                  return (
+                    <BlockedAppCard
+                      key={app.packageName}
+                      app={app}
+                      onToggle={(id) => {
+                        if (appHasSession) {
+                          setUnlockTarget(app);
+                        } else if (app.blocked && !hasActiveSession) {
+                          setSessionTarget(app);
+                        } else {
+                          handleToggleApp(id);
+                        }
+                      }}
+                      focusActive={appHasSession || hasActiveSession}
+                      onUnlockAttempt={handleUnlockAttempt}
+                    />
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })
+      ) : !scanning ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🎉</Text>
-          <Text style={styles.emptyTitle}>No Distracting Apps Found!</Text>
+          <Text style={styles.emptyIcon}>🎯</Text>
+          <Text style={styles.emptyTitle}>No Apps to Block</Text>
           <Text style={styles.emptyText}>
-            Great news! We could not find any social media, gaming, or entertainment apps on your device.
-
+            We only show social media and gaming apps that are actually installed on your phone.
+            None were found.
           </Text>
-          <Text style={styles.emptyHint}>
-            Either you are already focused, or you need to build the app with EAS to enable full app detection.
-          </Text>
-          <Text style={[styles.emptyHint, { marginTop: 12, fontStyle: 'normal', fontWeight: '600' }]}>
-            💡 To detect installed apps: Build with EAS and install the APK
-          </Text>
+          <Pressable style={styles.rescanBtn} onPress={scanDeviceApps}>
+            <RefreshCw size={14} color={COLORS.primary} />
+            <Text style={styles.rescanText}>Rescan Device</Text>
+          </Pressable>
         </View>
-      )}
+      ) : null}
 
-      {/* ── Blocking Session Dialog ── */}
       <BlockingSessionDialog
         visible={!!sessionTarget}
         app={sessionTarget}
+        blockedCount={blockedCount}
         duration={sessionDuration}
-        onStartSession={handleStartSession}
+        onStartSession={(_, duration) => handleStartShieldSession(sessionTarget ?? undefined)}
         onDismiss={() => setSessionTarget(null)}
       />
 
-      {/* ── Unlock Dialog ── */}
       <UnlockDialog
         visible={!!unlockTarget}
         app={unlockTarget}
@@ -506,15 +469,6 @@ export default function BlockedAppsScreen() {
         onDismiss={() => setUnlockTarget(null)}
       />
     </ScrollView>
-  );
-}
-
-function FeatureRow({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return (
-    <View style={styles.featureRow}>
-      {icon}
-      <Text style={styles.featureText}>{text}</Text>
-    </View>
   );
 }
 
@@ -532,6 +486,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 4,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  refreshBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: `${COLORS.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
   countBadge: {
@@ -541,46 +509,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
-    marginTop: 4,
   },
   countText: { fontSize: 11, fontWeight: '700', color: '#f87171' },
 
-  // Detox card
-  detoxCard: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 20,
-    padding: 18,
-  },
-  detoxCardActive: {
-    backgroundColor: 'rgba(19,78,74,0.2)',
-    borderColor: 'rgba(20,184,166,0.35)',
-  },
-  detoxTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  detoxLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  detoxIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.card,
+  shieldCta: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 14,
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    padding: 16,
   },
-  detoxIconActive: { backgroundColor: 'rgba(20,184,166,0.15)' },
-  detoxTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  detoxSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
-  detoxFeatures: {
-    marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(20,184,166,0.2)',
-    gap: 8,
-  },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  featureText: { fontSize: 12, color: '#99f6e4' },
+  shieldCtaDisabled: { opacity: 0.6 },
+  shieldCtaText: { flex: 1 },
+  shieldCtaTitle: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  shieldCtaSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
 
-  // Info card
   infoCard: {
     flexDirection: 'row',
     gap: SPACING.md,
@@ -598,36 +542,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  infoContent: {
-    flex: 1,
-    gap: 4,
-  },
-  infoTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-  infoText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    lineHeight: 16,
-  },
+  infoContent: { flex: 1, gap: 4 },
+  infoTitle: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
+  infoText: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 16 },
 
-  // List header
   listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    marginTop: 4,
   },
   listTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  listSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+  listSub: { fontSize: 11, color: COLORS.textSecondary },
 
-  appList: { gap: 10 },
+  appList: { gap: 10, marginTop: 8 },
 
-  // Empty state
   emptyState: {
     alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: 40,
     paddingHorizontal: 20,
     backgroundColor: COLORS.surface,
@@ -636,49 +567,30 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     gap: 12,
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 8,
+  emptyIcon: { fontSize: 48 },
+  emptyTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
+  emptyText: { fontSize: 13, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 },
+  rescanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}40`,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  emptyHint: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
+  rescanText: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
 
-  // Sessions section
-  sessionsSection: {
-    gap: 12,
-  },
+  sessionsSection: { gap: 12 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  sessionHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.text },
+  sessionHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sessionCountBadge: {
     backgroundColor: 'rgba(20,184,166,0.15)',
     borderWidth: 1,
@@ -687,16 +599,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
-  sessionCountText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.primary,
+  sessionCountText: { fontSize: 11, fontWeight: '700', color: COLORS.primary },
+  cleanupButton: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  sessionsList: { gap: 10 },
+  activeShieldBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(20,184,166,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(20,184,166,0.25)',
+    borderRadius: 12,
+    padding: 12,
   },
-  cleanupButton: {
-    fontSize: 18,
-    padding: 4,
-  },
-  sessionsList: {
-    gap: 10,
-  },
+  activeShieldText: { fontSize: 12, color: COLORS.primary, fontWeight: '600', flex: 1 },
 });

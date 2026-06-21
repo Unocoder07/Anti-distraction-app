@@ -20,6 +20,8 @@ interface AuthState {
     username: string;
     email: string;
     avatar?: string;
+    exam?: string;
+    examName?: string;
   }) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
@@ -53,8 +55,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     };
     await authService.persistSession(user);
     set({ user });
-    const profile = await authService.getUserProfile(user.userId);
-    set({ userProfile: profile });
+
+    // Don't wait for profile to finish if we already have the basic info needed for navigation
+    authService.getUserProfile(user.userId).then(profile => {
+      set({ userProfile: profile });
+    }).catch(err => console.error('Error fetching profile after login:', err));
   },
 
   signOut: async () => {
@@ -90,9 +95,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      set({ user });
-      const profile = await authService.getUserProfile(user.userId);
-      set({ userProfile: profile, loading: false, initialized: true });
+      set({ user, loading: false, initialized: true });
+
+      authService.getUserProfile(user.userId).then(profile => {
+        set({ userProfile: profile });
+      }).catch(error => {
+        console.error('Error fetching profile after session restore:', error);
+      });
     } catch (error) {
       console.error('Error restoring session:', error);
       await authService.clearSession();

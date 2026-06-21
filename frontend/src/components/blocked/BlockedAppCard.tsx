@@ -40,16 +40,16 @@ export function BlockedAppCard({
     }
   };
 
+  const handleCardPress = () => {
+    if (app.blocked && !focusActive) {
+      onToggle(app.id);
+    }
+  };
+
   return (
-    <Pressable 
-      style={styles.card}
-      onPress={() => {
-        // If blocked and no active session, this is a hint to start a session
-        // But the actual session start happens through the dialog
-        if (app.blocked && !focusActive) {
-          // Just show visual feedback - the parent will handle session start
-        }
-      }}
+    <Pressable
+      style={[styles.card, app.blocked && !focusActive && styles.cardBlocked]}
+      onPress={handleCardPress}
     >
       {/* Left: icon + info */}
       <View style={styles.left}>
@@ -68,7 +68,7 @@ export function BlockedAppCard({
           <Text style={styles.name}>{app.name}</Text>
           <Text style={styles.category}>{app.category}</Text>
           {app.blocked && !focusActive && (
-            <Text style={styles.hint}>Tap to start blocking session</Text>
+            <Text style={styles.hint}>Tap card to activate Shield</Text>
           )}
           {focusActive && (
             <Text style={styles.activeHint}>🛡️ Session active</Text>
@@ -106,6 +106,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  cardBlocked: {
+    borderColor: 'rgba(239,68,68,0.25)',
+    backgroundColor: 'rgba(239,68,68,0.04)',
   },
   left: {
     flexDirection: 'row',

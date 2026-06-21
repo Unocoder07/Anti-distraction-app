@@ -1,0 +1,12 @@
+com.sankalai.appblocker
+drawable button_primary
+drawable button_secondary
+id blockedAppName
+id blockedMessage
+id breakSessionButton
+id returnToFocusButton
+id timeRemaining
+layout activity_blocker
+string accessibility_service_description
+string accessibility_service_label
+xml accessibility_service_config

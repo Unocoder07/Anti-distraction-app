@@ -13,6 +13,8 @@ public interface FocusSessionRepository extends JpaRepository<FocusSession, Stri
     
     List<FocusSession> findByUser_UserIdOrderByStartTimeDesc(String userId, Pageable pageable);
     
+    List<FocusSession> findByUser_UserIdAndStatus(String userId, FocusSession.SessionStatus status);
+    
     List<FocusSession> findByUser_UserIdAndStartTimeBetween(String userId, LocalDateTime start, LocalDateTime end);
     
     Long countByUser_UserIdAndIsDeepWorkTrue(String userId);

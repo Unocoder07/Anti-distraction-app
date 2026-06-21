@@ -91,6 +91,19 @@ export function getForegroundApp(): string | null {
   return AppBlockerModule.getForegroundApp();
 }
 
+export interface InstalledAppResult {
+  packageName: string;
+  name: string;
+  isSystemApp: boolean;
+}
+
+/**
+ * Get distracting apps that are installed on this device
+ */
+export function getInstalledApps(): InstalledAppResult[] {
+  return AppBlockerModule.getInstalledApps();
+}
+
 // Event emitter for app blocking events
 const emitter = new EventEmitter(AppBlockerModule);
 

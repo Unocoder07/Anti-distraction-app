@@ -14,18 +14,24 @@ public class AuthResponse {
 
     private String avatar;
 
+    private String exam;
+
+    private String examName;
+
     private String message;
 
     // Constructor
     public AuthResponse() {}
     public AuthResponse(String token, String refreshToken, String userId, String username,
-                        String email, String avatar, String message) {
+                        String email, String avatar, String exam, String examName, String message) {
         this.token = token;
         this.refreshToken = refreshToken;
         this.userId = userId;
         this.username = username;
         this.email = email;
         this.avatar = avatar;
+        this.exam = exam;
+        this.examName = examName;
         this.message = message;
     }
 
@@ -48,7 +54,12 @@ public class AuthResponse {
     public String getAvatar() { return avatar; }
     public void setAvatar(String avatar) { this.avatar = avatar; }
 
-    public String getMessage() { return message; }
+    public String getExam() { return exam; }
+    public void setExam(String exam) { this.exam = exam; }
 
+    public String getExamName() { return examName; }
+    public void setExamName(String examName) { this.examName = examName; }
+
+    public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
 }

@@ -1,6 +1,7 @@
 package com.sankalai.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -30,19 +31,16 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
-    private final UserDetailsService userDetailsService;
 
     public AuthService(UserRepository userRepository, UserStatsRepository userStatsRepository,
                        PetStatusRepository petStatusRepository, PasswordEncoder passwordEncoder,
-                       JwtUtil jwtUtil, AuthenticationManager authenticationManager,
-                       UserDetailsService userDetailsService) {
+                       JwtUtil jwtUtil, AuthenticationManager authenticationManager) {
         this.userRepository = userRepository;
         this.userStatsRepository = userStatsRepository;
         this.petStatusRepository = petStatusRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.authenticationManager = authenticationManager;
-        this.userDetailsService = userDetailsService;
     }
 
     @Transactional
@@ -80,13 +78,14 @@ public class AuthService {
 
         petStatusRepository.save(petStatus);
 
-        // Generate tokens
-        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
+        // Generate tokens without extra DB query
+        UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+                user.getEmail(), user.getPassword(), new ArrayList<>());
         String token = jwtUtil.generateToken(userDetails);
         String refreshToken = jwtUtil.generateRefreshToken(userDetails);
 
         return new AuthResponse(token, refreshToken, user.getUserId(), user.getUsername(),
-                user.getEmail(), user.getAvatar(), "Account created successfully");
+                user.getEmail(), user.getAvatar(), user.getExam(), user.getExamName(), "Account created successfully");
     }
 
     public AuthResponse signIn(AuthRequest request) {
@@ -106,13 +105,14 @@ public class AuthService {
         user.setLastActive(LocalDateTime.now());
         userRepository.save(user);
 
-        // Generate tokens
-        UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
+        // Generate tokens without extra DB query
+        UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+                user.getEmail(), user.getPassword(), new ArrayList<>());
         String token = jwtUtil.generateToken(userDetails);
         String refreshToken = jwtUtil.generateRefreshToken(userDetails);
 
         return new AuthResponse(token, refreshToken, user.getUserId(), user.getUsername(),
-                user.getEmail(), user.getAvatar(), "Sign in successful");
+                user.getEmail(), user.getAvatar(), user.getExam(), user.getExamName(), "Sign in successful");
     }
 
     public User getUserByEmail(String email) {

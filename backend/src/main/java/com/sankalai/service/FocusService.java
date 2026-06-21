@@ -238,11 +238,7 @@ public class FocusService {
      * Get focus statistics
      */
     public FocusStatsDTO getFocusStats(String userId) {
-        List<FocusSession> sessions = getUserSessions(userId, 1000);
-
-        var completedSessions = sessions.stream()
-                .filter(s -> s.getStatus() == FocusSession.SessionStatus.COMPLETED)
-                .toList();
+        List<FocusSession> completedSessions = focusSessionRepository.findByUser_UserIdAndStatus(userId, FocusSession.SessionStatus.COMPLETED);
 
         int totalSessions = completedSessions.size();
         int totalMinutes = completedSessions.stream()

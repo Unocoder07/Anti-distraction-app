@@ -81,19 +81,7 @@ export default function SignupScreen() {
     try {
       const authResponse = await authService.signUp(email, password, name);
       await setSession(authResponse);
-
-      Alert.alert(
-        'Account Created!',
-        'Welcome to Sankalai! Let\'s set up your study profile.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              router.replace('/auth/exam-selection' as any);
-            },
-          },
-        ]
-      );
+      router.replace('/(tabs)' as any);
     } catch (error: any) {
       console.error('Signup error:', error);
       setErrors({ general: error.message });

@@ -4,17 +4,22 @@
  */
 import * as AppBlocker from 'app-blocker';
 import { Alert, Platform } from 'react-native';
-import type { BlockingSession as FirebaseSession } from './blockingService';
 
 export interface NativeBlockingSession {
   sessionId: string;
-  blockedApps: Array<{
+  blockedApps: {
     packageName: string;
     appName: string;
-  }>;
+  }[];
   startTime: number;
   duration: number;
 }
+
+type SessionLike = {
+  id: string;
+  startTime: Date | string | number;
+  duration: number;
+};
 
 class NativeBlockingService {
   private appBlockedListener: any = null;
@@ -206,7 +211,10 @@ class NativeBlockingService {
   /**
    * Start native blocking session
    */
-  async startNativeSession(session: FirebaseSession, blockedApps: Array<{ packageName: string; appName: string }>): Promise<boolean> {
+  async startNativeSession(
+    session: SessionLike,
+    blockedApps: { packageName: string; appName: string }[]
+  ): Promise<boolean> {
     if (Platform.OS !== 'android') {
       console.log('Native blocking only available on Android');
       return false;
@@ -221,15 +229,32 @@ class NativeBlockingService {
         if (!granted) return false;
       }
 
-      // Start native blocking session
-      const nativeSession: NativeBlockingSession = {
-        sessionId: session.id,
-        blockedApps,
-        startTime: new Date(session.startTime).getTime(),
-        duration: session.duration,
-      };
+      const effectiveBlockedApps = blockedApps
+        .map((a) => ({
+          packageName: a.packageName.trim(),
+          appName: a.appName.trim() || a.packageName.trim(),
+        }))
+        .filter((a) => !!a.packageName);
+      if (effectiveBlockedApps.length === 0) {
+        Alert.alert('No Apps Selected', 'Select at least one installed app before starting Shield.');
+        return false;
+      }
 
-      AppBlocker.startBlockingSession(nativeSession);
+      // Start native blocking session
+      AppBlocker.startBlockingSession({
+        sessionId: session.id,
+        blockedApps: effectiveBlockedApps,
+        startTime: new Date(session.startTime).getTime(),
+        duration: session.duration
+      });
+
+      if (!AppBlocker.isBlockingSessionActive()) {
+        Alert.alert(
+          'Shield Not Active',
+          'Android did not activate the blocking session. Please check Shield permissions and try again.'
+        );
+        return false;
+      }
 
       // Listen for app blocked events
       this.startListening();

@@ -1,9 +1,8 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:15-alpine
     container_name: sankalai-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: sankalaai_db
       POSTGRES_USER: postgres
@@ -14,23 +13,44 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - sankalai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: sankalai-backend
+    restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8083:8083"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sankalaai_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_JPA_SHOW_SQL: "false"
+      SERVER_PORT: 8083
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - sankalai-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8083/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   postgres_data:
+    driver: local
 
 networks:
   sankalai-network:

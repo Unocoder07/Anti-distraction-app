@@ -1,130 +1,102 @@
 /**
  * Native App Blocker Bridge
- * Simple bridge to native Kotlin module
+ * Uses the Expo app-blocker module (registered as "AppBlocker" in Kotlin)
  */
-import { NativeModules, Platform } from 'react-native';
+import * as AppBlocker from 'app-blocker';
+import { Platform } from 'react-native';
 
-const { AppBlockerModule } = NativeModules;
+export interface InstalledAppNative {
+  packageName: string;
+  name: string;
+  isSystemApp: boolean;
+}
 
 export interface BlockedAppNative {
   packageName: string;
   appName: string;
 }
 
+function isModuleAvailable(): boolean {
+  if (Platform.OS !== 'android') return false;
+  try {
+    return typeof AppBlocker.getInstalledApps === 'function';
+  } catch {
+    return false;
+  }
+}
+
 export const nativeAppBlocker = {
-  /**
-   * Check if overlay permission is granted
-   */
   async hasOverlayPermission(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return false;
+    if (!isModuleAvailable()) return false;
     try {
-      return await AppBlockerModule.hasOverlayPermission();
+      return AppBlocker.hasOverlayPermission();
     } catch (error) {
       console.error('Error checking overlay permission:', error);
       return false;
     }
   },
 
-  /**
-   * Request overlay permission
-   */
   async requestOverlayPermission(): Promise<void> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return;
+    if (!isModuleAvailable()) return;
     try {
-      await AppBlockerModule.requestOverlayPermission();
+      AppBlocker.requestOverlayPermission();
     } catch (error) {
       console.error('Error requesting overlay permission:', error);
     }
   },
 
-  /**
-   * Check if accessibility service is enabled
-   */
   async isAccessibilityServiceEnabled(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return false;
+    if (!isModuleAvailable()) return false;
     try {
-      return await AppBlockerModule.isAccessibilityServiceEnabled();
+      return AppBlocker.isAccessibilityServiceEnabled();
     } catch (error) {
       console.error('Error checking accessibility service:', error);
       return false;
     }
   },
 
-  /**
-   * Request accessibility service
-   */
   async requestAccessibilityService(): Promise<void> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return;
+    if (!isModuleAvailable()) return;
     try {
-      await AppBlockerModule.requestAccessibilityService();
+      AppBlocker.requestAccessibilityService();
     } catch (error) {
       console.error('Error requesting accessibility service:', error);
     }
   },
 
-  /**
-   * Check if usage stats permission is granted
-   */
   async hasUsageStatsPermission(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return false;
+    if (!isModuleAvailable()) return false;
     try {
-      return await AppBlockerModule.hasUsageStatsPermission();
+      return AppBlocker.hasUsageStatsPermission();
     } catch (error) {
       console.error('Error checking usage stats permission:', error);
       return false;
     }
   },
 
-  /**
-   * Request usage stats permission
-   */
   async requestUsageStatsPermission(): Promise<void> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return;
+    if (!isModuleAvailable()) return;
     try {
-      await AppBlockerModule.requestUsageStatsPermission();
+      AppBlocker.requestUsageStatsPermission();
     } catch (error) {
       console.error('Error requesting usage stats permission:', error);
     }
   },
 
-  /**
-   * Start blocking session
-   */
   async startBlockingSession(
     sessionId: string,
     blockedApps: BlockedAppNative[],
     startTime: number,
     duration: number
   ): Promise<boolean> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return false;
+    if (!isModuleAvailable()) return false;
     try {
-      return await AppBlockerModule.startBlockingSession(sessionId, blockedApps, startTime, duration);
-    } catch (error) {
-      console.error('Error starting blocking session:', error);
-      return false;
-    }
-  },
-
-  /**
-   * Get installed apps using our native module
-   */
-  async getInstalledApps(): Promise<any[]> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return [];
-    try {
-      return await AppBlockerModule.getInstalledApps();
-    } catch (error) {
-      console.error('Error getting installed apps from native module:', error);
-      return [];
-    }
-  }
-};
-      await AppBlockerModule.startBlockingSession(
+      AppBlocker.startBlockingSession({
         sessionId,
         blockedApps,
         startTime,
-        duration
-      );
-      console.log('✅ Native blocking session started');
+        duration,
+      });
       return true;
     } catch (error) {
       console.error('Error starting blocking session:', error);
@@ -132,35 +104,40 @@ export const nativeAppBlocker = {
     }
   },
 
-  /**
-   * Stop blocking session
-   */
-  async stopBlockingSession(): Promise<void> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return;
+  async getInstalledApps(): Promise<InstalledAppNative[]> {
+    if (!isModuleAvailable()) {
+      console.warn('AppBlocker native module not available — use: npx expo run:android');
+      return [];
+    }
     try {
-      await AppBlockerModule.stopBlockingSession();
-      console.log('✅ Native blocking session stopped');
+      const apps = AppBlocker.getInstalledApps();
+      console.log(`📱 Native module returned ${apps?.length ?? 0} installed apps`);
+      return apps ?? [];
+    } catch (error) {
+      console.error('Error getting installed apps from native module:', error);
+      return [];
+    }
+  },
+
+  async stopBlockingSession(): Promise<void> {
+    if (!isModuleAvailable()) return;
+    try {
+      AppBlocker.stopBlockingSession();
     } catch (error) {
       console.error('Error stopping blocking session:', error);
     }
   },
 
-  /**
-   * Check if blocking session is active
-   */
   async isBlockingSessionActive(): Promise<boolean> {
-    if (Platform.OS !== 'android' || !AppBlockerModule) return false;
+    if (!isModuleAvailable()) return false;
     try {
-      return await AppBlockerModule.isBlockingSessionActive();
+      return AppBlocker.isBlockingSessionActive();
     } catch (error) {
       console.error('Error checking blocking session:', error);
       return false;
     }
   },
 
-  /**
-   * Check all permissions
-   */
   async checkAllPermissions(): Promise<{
     overlay: boolean;
     accessibility: boolean;
@@ -171,14 +148,10 @@ export const nativeAppBlocker = {
       this.isAccessibilityServiceEnabled(),
       this.hasUsageStatsPermission(),
     ]);
-
     return { overlay, accessibility, usageStats };
   },
 
-  /**
-   * Check if module is available
-   */
   isAvailable(): boolean {
-    return Platform.OS === 'android' && !!AppBlockerModule;
+    return isModuleAvailable();
   },
 };

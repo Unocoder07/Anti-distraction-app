@@ -80,7 +80,7 @@ public class HomeService {
 
         UserStats userStats = getUserStats(userId);
         PetStatus petStatus = getPetStatus(userId);
-        List<DailyChallenge> challenges = getDailyChallenges(userId);
+        List<DailyChallenge> challenges = getDailyChallenges(userId, user, userStats);
 
         // Convert to DTOs
         HomeDataResponse.UserStatsDTO statsDTO = mapToUserStatsDTO(userStats);
@@ -108,22 +108,25 @@ public class HomeService {
     }
 
     public List<DailyChallenge> getDailyChallenges(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        UserStats stats = getUserStats(userId);
+        return getDailyChallenges(userId, user, stats);
+    }
+
+    public List<DailyChallenge> getDailyChallenges(String userId, User user, UserStats stats) {
         LocalDate today = LocalDate.now();
         List<DailyChallenge> challenges = dailyChallengeRepository.findByUser_UserIdAndDate(userId, today);
 
         if (challenges.isEmpty()) {
-            challenges = generateDailyChallenges(userId);
+            challenges = generateDailyChallenges(user, stats);
         }
 
         return challenges;
     }
 
     @Transactional
-    public List<DailyChallenge> generateDailyChallenges(String userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        UserStats stats = getUserStats(userId);
+    public List<DailyChallenge> generateDailyChallenges(User user, UserStats stats) {
         LocalDate today = LocalDate.now();
         LocalDateTime endOfDay = LocalDateTime.of(today, LocalTime.MAX);
 
@@ -192,6 +195,7 @@ public class HomeService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         UserStats stats = getUserStats(userId);
+        PetStatus pet = getPetStatus(userId);
 
         // Calculate rewards
         int fpEarned = calculateFP(request.getDurationMinutes(), request.getFocusScore());
@@ -236,29 +240,34 @@ public class HomeService {
         stats.setAverageSessionLength(newAverageLength);
         stats.setTotalDeepWorkHours(newDeepWorkHours);
 
-        userStatsRepository.save(stats);
-
         // Award rewards
-        awardRewards(userId, fpEarned, xpEarned);
+        awardRewardsInternal(stats, fpEarned, xpEarned);
 
         // Update streak
-        updateStreak(userId);
+        updateStreakInternal(stats);
 
         // Update pet
-        feedPet(userId);
+        feedPetInternal(pet, stats);
+
+        userStatsRepository.save(stats);
+        petStatusRepository.save(pet);
 
         // Update challenges
-        updateChallengeProgress(userId, DailyChallenge.ChallengeType.SESSION, 1);
-        updateChallengeProgress(userId, DailyChallenge.ChallengeType.TIME, request.getDurationMinutes());
+        updateChallengeProgressInternal(userId, user, stats, DailyChallenge.ChallengeType.SESSION, 1);
+        updateChallengeProgressInternal(userId, user, stats, DailyChallenge.ChallengeType.TIME, request.getDurationMinutes());
         if (isDeepWork) {
-            updateChallengeProgress(userId, DailyChallenge.ChallengeType.DEEP_WORK, 1);
+            updateChallengeProgressInternal(userId, user, stats, DailyChallenge.ChallengeType.DEEP_WORK, 1);
         }
     }
 
     @Transactional
     public void awardRewards(String userId, int focusPoints, int xp) {
         UserStats stats = getUserStats(userId);
+        awardRewardsInternal(stats, focusPoints, xp);
+        userStatsRepository.save(stats);
+    }
 
+    private void awardRewardsInternal(UserStats stats, int focusPoints, int xp) {
         long newTotalFP = stats.getTotalFocusPoints() + focusPoints;
         long newCurrentFP = stats.getCurrentFocusPoints() + focusPoints;
         long newTotalXP = stats.getTotalXP() + xp;
@@ -276,13 +285,16 @@ public class HomeService {
         stats.setAchievementLevel(achievementInfo.level);
         stats.setAchievementName(achievementInfo.name);
         stats.setAchievementTier(achievementInfo.tier);
-
-        userStatsRepository.save(stats);
     }
 
     @Transactional
     public void updateStreak(String userId) {
         UserStats stats = getUserStats(userId);
+        updateStreakInternal(stats);
+        userStatsRepository.save(stats);
+    }
+
+    private void updateStreakInternal(UserStats stats) {
         LocalDate today = LocalDate.now();
         LocalDate yesterday = today.minusDays(1);
 
@@ -304,15 +316,17 @@ public class HomeService {
         stats.setBestStreak(newBestStreak);
         stats.setLastSessionDate(today);
         stats.setStreakUpdatedAt(LocalDateTime.now());
-
-        userStatsRepository.save(stats);
     }
 
     @Transactional
     public void feedPet(String userId) {
         PetStatus pet = getPetStatus(userId);
         UserStats stats = getUserStats(userId);
+        feedPetInternal(pet, stats);
+        petStatusRepository.save(pet);
+    }
 
+    private void feedPetInternal(PetStatus pet, UserStats stats) {
         // Calculate mood based on streak
         PetStatus.PetMood mood = PetStatus.PetMood.HAPPY;
         if (stats.getCurrentStreak() >= 7) {
@@ -331,13 +345,18 @@ public class HomeService {
         pet.setEnergy(100);
         pet.setLastFed(LocalDateTime.now());
         pet.setLevel(stats.getCurrentLevel());
-
-        petStatusRepository.save(pet);
     }
 
     @Transactional
     public void updateChallengeProgress(String userId, DailyChallenge.ChallengeType type, int amount) {
-        List<DailyChallenge> challenges = getDailyChallenges(userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        UserStats stats = getUserStats(userId);
+        updateChallengeProgressInternal(userId, user, stats, type, amount);
+    }
+
+    private void updateChallengeProgressInternal(String userId, User user, UserStats stats, DailyChallenge.ChallengeType type, int amount) {
+        List<DailyChallenge> challenges = getDailyChallenges(userId, user, stats);
 
         for (DailyChallenge challenge : challenges) {
             if (challenge.getType().equals(type) && !challenge.getCompleted()) {
@@ -350,7 +369,8 @@ public class HomeService {
                 if (completed && challenge.getCompletedAt() == null) {
                     challenge.setCompletedAt(LocalDateTime.now());
                     // Award challenge rewards
-                    awardRewards(userId, challenge.getRewardFP(), challenge.getRewardXP());
+                    awardRewardsInternal(stats, challenge.getRewardFP(), challenge.getRewardXP());
+                    userStatsRepository.save(stats);
                 }
 
                 dailyChallengeRepository.save(challenge);

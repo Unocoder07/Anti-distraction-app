@@ -1,6 +1,7 @@
 import { router, Slot, usePathname, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { BarChart2, Home, ShieldAlert, Timer } from 'lucide-react-native';
+import { useEffect } from 'react';
 import {
   Image,
   Platform,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuthStore } from '@/src/store/authStore';
 
 export default function RootLayout() {
   return (
@@ -26,12 +28,32 @@ function LayoutContent() {
   const pathname = usePathname();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
+  const { user, initialized } = useAuthStore();
 
-  // Check if we're in auth routes
   const inAuthGroup = segments[0] === 'auth';
   const isSplash = pathname === '/_splash';
 
-  // Hide navigation on focus screen, splash, and auth screens
+  useEffect(() => {
+    if (!initialized || isSplash) return;
+
+    const publicAuthRoutes = ['/auth/login', '/auth/signup', '/auth/forgot-password'];
+    const isPublicAuthRoute = publicAuthRoutes.some((route) => pathname.startsWith(route));
+
+    if (!user && !inAuthGroup) {
+      router.replace('/auth/login' as any);
+      return;
+    }
+
+    if (user && inAuthGroup && !isPublicAuthRoute) {
+      router.replace('/(tabs)' as any);
+      return;
+    }
+
+    if (user && (pathname === '/auth/login' || pathname === '/auth/signup')) {
+      router.replace('/(tabs)' as any);
+    }
+  }, [user, initialized, inAuthGroup, isSplash, pathname]);
+
   const hideNav = pathname === '/focus' || pathname === '/(tabs)/focus' || isSplash || inAuthGroup;
 
   return (

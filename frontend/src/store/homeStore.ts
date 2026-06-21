@@ -117,16 +117,12 @@ export const useHomeStore = create<HomeState>((set, get) => ({
 
       await homeService.recordSessionCompletion(userId, duration, fp, xp);
 
-      // Reload all data
+      // Just reload home data once, as it contains everything (stats, pet, challenges)
       const homeData = await homeService.getHomeData(userId);
-      
-      // Update pet
-      await homeService.feedPet(userId);
-      const petStatus = await homeService.getPetStatus(userId);
 
       set({
         userStats: homeData.userStats,
-        petStatus,
+        petStatus: homeData.petStatus,
         dailyChallenges: homeData.dailyChallenges,
         streakInfo: homeData.streakInfo,
         loading: false,

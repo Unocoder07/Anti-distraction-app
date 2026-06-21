@@ -70,7 +70,10 @@ public class ProfileService {
 
         UserStats userStats = homeService.getUserStats(userId);
         var focusStats = focusService.getFocusStats(userId);
-        var achievements = getUserAchievements(userId);
+        var blockingStats = blockingService.getBlockingStats(userId);
+        var sessions = focusService.getUserSessions(userId, 100);
+        
+        var achievements = getUserAchievementsInternal(userId, userStats, focusStats, blockingStats, sessions);
 
         long unlockedCount = achievements.stream().filter(AchievementDTO::unlocked).count();
 
@@ -99,6 +102,21 @@ public class ProfileService {
      * Get user achievements
      */
     public List<AchievementDTO> getUserAchievements(String userId) {
+        UserStats userStats = homeService.getUserStats(userId);
+        var focusStats = focusService.getFocusStats(userId);
+        var blockingStats = blockingService.getBlockingStats(userId);
+        var sessions = focusService.getUserSessions(userId, 100);
+        
+        return getUserAchievementsInternal(userId, userStats, focusStats, blockingStats, sessions);
+    }
+
+    private List<AchievementDTO> getUserAchievementsInternal(
+            String userId,
+            UserStats userStats,
+            FocusStatsDTO focusStats,
+            com.sankalai.dto.BlockingDTO.BlockingStatsDTO blockingStats,
+            List<com.sankalai.entity.FocusSession> sessions
+    ) {
         // Get user's unlocked achievements from database
         List<Achievement> userAchievements = achievementRepository.findByUser_UserId(userId);
 
@@ -108,12 +126,6 @@ public class ProfileService {
                         Achievement::getAchievementId,
                         Achievement::getUnlockedAt
                 ));
-
-        // Get user stats for progress calculation
-        UserStats userStats = homeService.getUserStats(userId);
-        var focusStats = focusService.getFocusStats(userId);
-        var blockingStats = blockingService.getBlockingStats(userId);
-        var sessions = focusService.getUserSessions(userId, 100);
 
         // Map achievements with progress
         return ACHIEVEMENT_DEFINITIONS.stream()

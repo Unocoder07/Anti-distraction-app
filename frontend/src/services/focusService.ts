@@ -1,6 +1,7 @@
 // Focus Service - Complete focus session management with backend API integration
 import { apiCall } from '../config/api';
 import { blockingService } from './blockingService';
+import { nativeBlockingService } from './nativeBlockingService';
 
 // ═══════════════════════════════════════════════════════════
 // TYPES
@@ -85,7 +86,10 @@ class FocusService {
         subjectColor: subject?.color,
       });
 
-      return {
+      const createdAt = response.createdAt ? new Date(response.createdAt) : new Date();
+      const updatedAt = response.updatedAt ? new Date(response.updatedAt) : createdAt;
+
+      const session: FocusSession = {
         id: response.id,
         userId,
         startTime: new Date(response.startTime),
@@ -104,10 +108,22 @@ class FocusService {
         distractionCount: response.distractionCount,
         focusScore: response.focusScore,
         pauseCount: response.pauseCount,
-        createdAt: new Date(response.createdAt),
+        createdAt,
         completedAt: response.completedAt ? new Date(response.completedAt) : undefined,
-        updatedAt: response.updatedAt ? new Date(response.updatedAt) : undefined,
+        updatedAt,
       };
+
+      try {
+        const blockedApps = await blockingService.getUserBlockedApps(userId);
+        const blockedPackages = blockedApps
+          .filter((a) => a.blocked && !!a.packageName)
+          .map((a) => ({ packageName: a.packageName as string, appName: a.name }));
+        await nativeBlockingService.startNativeSession(session, blockedPackages);
+      } catch (e) {
+        console.error('Error starting native blocking for focus session:', e);
+      }
+
+      return session;
     } catch (error) {
       console.error('Error starting focus session:', error);
       throw error;
@@ -133,6 +149,7 @@ class FocusService {
         pauseCount,
       });
 
+      nativeBlockingService.stopNativeSession();
       return { fp: response.fp, xp: response.xp };
     } catch (error) {
       console.error('Error completing focus session:', error);
@@ -152,6 +169,7 @@ class FocusService {
       await apiCall(`/focus/sessions/${sessionId}/break`, 'POST', {
         actualDuration,
       });
+      nativeBlockingService.stopNativeSession();
     } catch (error) {
       console.error('Error breaking focus session:', error);
       throw error;
@@ -199,6 +217,7 @@ class FocusService {
       const response = await apiCall(`/focus/sessions?limit=${limitCount}`, 'GET');
       
       return response.map((s: any) => ({
+        createdAt: s.createdAt ? new Date(s.createdAt) : new Date(),
         id: s.id,
         userId: s.userId,
         startTime: new Date(s.startTime),
@@ -218,9 +237,8 @@ class FocusService {
         distractionCount: s.distractionCount,
         focusScore: s.focusScore,
         pauseCount: s.pauseCount,
-        createdAt: new Date(s.createdAt),
         completedAt: s.completedAt ? new Date(s.completedAt) : undefined,
-        updatedAt: s.updatedAt ? new Date(s.updatedAt) : undefined,
+        updatedAt: s.updatedAt ? new Date(s.updatedAt) : (s.createdAt ? new Date(s.createdAt) : new Date()),
       }));
     } catch (error) {
       console.error('Error getting user sessions:', error);

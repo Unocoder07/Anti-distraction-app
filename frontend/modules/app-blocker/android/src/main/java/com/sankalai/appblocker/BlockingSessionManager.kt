@@ -19,6 +19,19 @@ object BlockingSessionManager {
   private const val KEY_DURATION = "duration"
   private const val KEY_IS_ACTIVE = "is_active"
 
+  private val WHITELISTED_PACKAGES = setOf(
+    "com.android.dialer",
+    "com.google.android.dialer",
+    "com.android.incallui",
+    "com.android.contacts",
+    "com.google.android.contacts",
+    "com.android.messaging",
+    "com.google.android.apps.messaging",
+    "com.android.emergency",
+    "com.google.android.apps.emergencyassist",
+    "com.jennise.sankalai"
+  )
+
   data class BlockingSession(
     val sessionId: String,
     val blockedApps: List<BlockedApp>,
@@ -53,16 +66,19 @@ object BlockingSessionManager {
     // Convert blocked apps to JSON
     val jsonArray = JSONArray()
     for (app in blockedApps) {
+      val packageName = app["packageName"]?.trim().orEmpty()
+      if (packageName.isBlank()) continue
+
       val jsonObject = JSONObject()
-      jsonObject.put("packageName", app["packageName"])
-      jsonObject.put("appName", app["appName"])
+      jsonObject.put("packageName", packageName)
+      jsonObject.put("appName", app["appName"]?.trim().takeUnless { it.isNullOrBlank() } ?: packageName)
       jsonArray.put(jsonObject)
     }
     editor.putString(KEY_BLOCKED_APPS, jsonArray.toString())
 
     editor.apply()
 
-    Log.d(TAG, "Session started: $sessionId with ${blockedApps.size} blocked apps")
+    Log.d(TAG, "Session started: $sessionId with ${jsonArray.length()} blocked apps")
   }
 
   fun stopSession(context: Context) {
@@ -105,6 +121,10 @@ object BlockingSessionManager {
   }
 
   fun isAppBlocked(context: Context, packageName: String): Boolean {
+    if (isPackageWhitelisted(packageName)) {
+      return false
+    }
+
     if (!isSessionActive(context)) {
       return false
     }
@@ -116,7 +136,7 @@ object BlockingSessionManager {
       val jsonArray = JSONArray(blockedAppsJson)
       for (i in 0 until jsonArray.length()) {
         val jsonObject = jsonArray.getJSONObject(i)
-        val blockedPackage = jsonObject.getString("packageName")
+        val blockedPackage = jsonObject.getString("packageName").trim()
         if (blockedPackage == packageName) {
           return true
         }
@@ -126,6 +146,10 @@ object BlockingSessionManager {
     }
 
     return false
+  }
+
+  fun isPackageWhitelisted(packageName: String): Boolean {
+    return WHITELISTED_PACKAGES.contains(packageName)
   }
 
   fun getAppName(context: Context, packageName: String): String {

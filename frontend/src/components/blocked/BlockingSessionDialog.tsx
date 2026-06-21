@@ -7,6 +7,7 @@ import type { BlockedApp } from './BlockedAppCard';
 interface BlockingSessionDialogProps {
   visible: boolean;
   app: BlockedApp | null;
+  blockedCount?: number;
   duration?: number; // in minutes
   onStartSession: (app: BlockedApp, duration: number) => void;
   onDismiss: () => void;
@@ -15,6 +16,7 @@ interface BlockingSessionDialogProps {
 export function BlockingSessionDialog({
   visible,
   app,
+  blockedCount = 1,
   duration = DEFAULT_SESSION_DURATION,
   onStartSession,
   onDismiss,
@@ -42,9 +44,10 @@ export function BlockingSessionDialog({
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>Start Blocking Session</Text>
+          <Text style={styles.title}>Activate Shield</Text>
           <Text style={styles.desc}>
-            Block <Text style={styles.appName}>{app.name}</Text> and earn rewards for staying focused!
+            Physically lock <Text style={styles.appName}>{blockedCount} app{blockedCount > 1 ? 's' : ''}</Text> on your phone.
+            You won't be able to open them even by switching apps.
           </Text>
 
           {/* Session Info */}
@@ -87,10 +90,10 @@ export function BlockingSessionDialog({
           {/* Rules */}
           <View style={styles.rulesBox}>
             <Text style={styles.rulesTitle}>📋 Session Rules</Text>
-            <Text style={styles.ruleText}>✓ App will be blocked for {duration} minutes</Text>
-            <Text style={styles.ruleText}>✓ Complete the session to earn {REWARD_COINS} coins</Text>
-            <Text style={styles.ruleText}>✗ Unlocking early costs {PENALTY_COINS} coins</Text>
-            <Text style={styles.ruleText}>✗ Breaking session damages your pet's health</Text>
+            <Text style={styles.ruleText}>✓ All {blockedCount} blocked apps are physically locked</Text>
+            <Text style={styles.ruleText}>✓ Switching apps won't bypass the block</Text>
+            <Text style={styles.ruleText}>✓ Complete session to earn {REWARD_COINS} coins</Text>
+            <Text style={styles.ruleText}>✗ Breaking early costs {PENALTY_COINS} coins</Text>
           </View>
 
           {/* Motivation quote */}
@@ -109,7 +112,7 @@ export function BlockingSessionDialog({
             onPress={() => onStartSession(app, duration)}
           >
             <Shield size={18} color={COLORS.background} />
-            <Text style={styles.startBtnText}>Start Blocking Session</Text>
+            <Text style={styles.startBtnText}>Activate Shield ({duration} min)</Text>
           </Pressable>
 
           <Pressable

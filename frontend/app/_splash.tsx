@@ -3,7 +3,7 @@ import { COLORS } from '@/src/constants/colors';
 import { SPACING } from '@/src/constants/spacing';
 import { useAuthStore } from '@/src/store/authStore';
 import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 export default function SplashScreen() {
@@ -11,42 +11,32 @@ export default function SplashScreen() {
   const user = useAuthStore((state) => state.user);
   const initialized = useAuthStore((state) => state.initialized);
   const loading = useAuthStore((state) => state.loading);
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
     initializeAuth();
   }, [initializeAuth]);
 
   useEffect(() => {
-    // Wait for auth to initialize
-    if (!initialized) {
-      console.log('Splash: Waiting for auth to initialize...');
-      return;
-    }
+    if (!initialized || hasNavigated.current) return;
 
-    console.log('Splash: Auth initialized, user:', user ? 'logged in' : 'not logged in');
-
-    // Small delay for splash screen effect
     const timer = setTimeout(() => {
+      hasNavigated.current = true;
+
       if (user) {
-        // User is logged in, go to main app
-        console.log('Splash: Redirecting to main app');
         router.replace('/(tabs)' as any);
       } else {
-        // User is not logged in, go to login
-        console.log('Splash: Redirecting to login');
         router.replace('/auth/login' as any);
       }
-    }, 2000);
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, [user, initialized]);
 
   return (
     <View style={styles.container}>
-      {/* Animated Background Gradient */}
       <View style={styles.gradientBg} />
 
-      {/* Logo Section */}
       <View style={styles.logoSection}>
         <View style={styles.logoCircle}>
           <Text style={styles.logoEmoji}>🎯</Text>
@@ -55,15 +45,13 @@ export default function SplashScreen() {
         <Text style={styles.tagline}>Focus OS</Text>
       </View>
 
-      {/* Loading Indicator */}
       <View style={styles.loadingSection}>
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>
-          {loading ? 'Initializing Focus Protocol...' : 'Loading...'}
+          {loading || !initialized ? 'Initializing Focus Protocol...' : 'Loading...'}
         </Text>
       </View>
 
-      {/* Bottom Text */}
       <View style={styles.bottomSection}>
         <Text style={styles.versionText}>v1.0.0</Text>
       </View>
@@ -86,8 +74,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     opacity: 0.5,
   },
-
-  // Logo Section
   logoSection: {
     alignItems: 'center',
     gap: SPACING.lg,
@@ -102,7 +88,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: `0 0 20px ${COLORS.primary}80`, // 0.5 opacity
+    boxShadow: `0 0 20px ${COLORS.primary}80`,
     elevation: 10,
   },
   logoEmoji: {
@@ -121,8 +107,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
   },
-
-  // Loading Section
   loadingSection: {
     alignItems: 'center',
     gap: SPACING.lg,
@@ -133,8 +117,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 0.5,
   },
-
-  // Bottom Section
   bottomSection: {
     alignItems: 'center',
   },

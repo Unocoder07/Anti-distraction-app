@@ -54,14 +54,7 @@ export default function LoginScreen() {
     try {
       const authResponse = await authService.signIn(email, password);
       await setSession(authResponse);
-
-      const userProfile = await authService.getUserProfile(authResponse.userId);
-
-      if (userProfile && userProfile.exam) {
-        router.replace('/(tabs)' as any);
-      } else {
-        router.replace('/auth/exam-selection' as any);
-      }
+      router.replace('/(tabs)' as any);
     } catch (error: any) {
       console.error('Login error:', error);
       setErrors({ general: error.message });

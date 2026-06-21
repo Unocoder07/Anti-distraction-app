@@ -10,4 +10,5 @@ add_library(appblocker SHARED
 target_link_libraries(appblocker
   ${CMAKE_DL_LIBS}
   log
+  c++_shared
 )

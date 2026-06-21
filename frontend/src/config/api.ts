@@ -3,42 +3,133 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { storage, STORAGE_KEYS } from "../services/storage";
 
-// API timeout (60 seconds) - increased for tunnel stability
-export const API_TIMEOUT = 60000;
+// Keep auth/API failures fast in dev instead of leaving buttons stuck loading.
+export const API_TIMEOUT = 10000;
+
+const LAN_HOST_PREFIXES = ["192.168.", "10.", "172."];
+
+const getHostFromUri = (uri?: string | null) => {
+  if (!uri) return null;
+
+  const host = uri.split(":")[0];
+  return LAN_HOST_PREFIXES.some((prefix) => host.startsWith(prefix)) ? host : null;
+};
 
 const getBaseURL = () => {
-  // If we're in development
-  if (__DEV__) {
-    const computerIp = "10.181.236.116";
+  const configuredBaseUrl =
+    (process.env.EXPO_PUBLIC_API_BASE_URL as string | undefined) ||
+    ((Constants.expoConfig?.extra as any)?.apiBaseUrl as string | undefined);
 
-    // 1. Check for Android Emulator
-    if (Platform.OS === "android" && !Constants.expoConfig?.hostUri) {
-      return "http://10.0.2.2:8080/api";
-    }
-
-    // 2. Try to get the host from Expo Constants
-    const hostUri = Constants.expoConfig?.hostUri;
-    
-    if (hostUri) {
-      const ip = hostUri.split(":")[0];
-      // If it's a local IP (starts with 192.168 or 10. or 172.), use it
-      if (ip.startsWith("192.168.") || ip.startsWith("10.") || ip.startsWith("172.")) {
-        return `http://${ip}:8080/api`;
-      }
-      // If it's a tunnel URL (like .exp.direct), we can't use it for the backend
-      // because the backend isn't tunneled. Fallback to computerIp.
-    }
-
-    // 3. Fallback to your manual IP
-    return `http://${computerIp}:8080/api`;
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
   }
 
-  // Production
-  return "https://your-backend-url.com/api";
+  const localhost = "http://localhost:8083/api";
+  const devHost = process.env.EXPO_PUBLIC_DEV_HOST as string | undefined;
+  const hostUri = Constants.expoConfig?.hostUri;
+  const expoLanHost = getHostFromUri(hostUri);
+
+  if (Platform.OS === "android") {
+    if (devHost) {
+      return `http://${devHost}:8083/api`;
+    }
+
+    if (expoLanHost) {
+      return `http://${expoLanHost}:8083/api`;
+    }
+
+    if (__DEV__ && !Constants.isDevice) {
+      return "http://10.0.2.2:8083/api";
+    }
+
+    return localhost;
+  }
+
+  if (Platform.OS === "ios") {
+    if (devHost) {
+      return `http://${devHost}:8083/api`;
+    }
+
+    if (expoLanHost && Constants.isDevice) {
+      return `http://${expoLanHost}:8083/api`;
+    }
+
+    return localhost;
+  }
+
+  return localhost;
 };
 
 export const API_BASE_URL = getBaseURL();
 console.log("[API] Base URL:", API_BASE_URL);
+
+const getFallbackBaseURLs = () => {
+  const urls = [API_BASE_URL];
+
+  if (Platform.OS === "android" && __DEV__) {
+    const devHost = process.env.EXPO_PUBLIC_DEV_HOST as string | undefined;
+    const expoLanHost = getHostFromUri(Constants.expoConfig?.hostUri);
+
+    if (devHost) {
+      urls.push(`http://${devHost}:8083/api`);
+    }
+
+    if (expoLanHost) {
+      urls.push(`http://${expoLanHost}:8083/api`);
+    }
+
+    if (!Constants.isDevice) {
+      urls.push("http://10.0.2.2:8083/api");
+    }
+
+    urls.push("http://127.0.0.1:8083/api");
+  }
+
+  return Array.from(new Set(urls));
+};
+
+export const API_BASE_URLS = getFallbackBaseURLs();
+console.log("[API] Base URL fallbacks:", API_BASE_URLS);
+
+const fetchWithTimeout = async (
+  baseUrl: string,
+  endpoint: string,
+  options: RequestInit,
+): Promise<Response> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+
+  try {
+    return await fetch(`${baseUrl}${endpoint}`, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const fetchFromAPI = async (
+  endpoint: string,
+  options: RequestInit,
+): Promise<Response> => {
+  let lastError: any;
+
+  for (const baseUrl of API_BASE_URLS) {
+    try {
+      return await fetchWithTimeout(baseUrl, endpoint, options);
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`[API] Request failed for ${baseUrl}${endpoint}:`, error?.message || error);
+    }
+  }
+
+  if (lastError?.name === "AbortError") {
+    throw new Error("Request timeout");
+  }
+
+  throw lastError;
+};
 
 // Helper function to get authorization header
 export const getAuthHeader = (token: string) => ({
@@ -52,28 +143,13 @@ export const authenticatedFetch = async (
   token: string,
   options: RequestInit = {},
 ): Promise<Response> => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
-
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        ...getAuthHeader(token),
-        ...options.headers,
-      },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === "AbortError") {
-      throw new Error("Request timeout");
-    }
-    throw error;
-  }
+  return fetchFromAPI(endpoint, {
+    ...options,
+    headers: {
+      ...getAuthHeader(token),
+      ...options.headers,
+    },
+  });
 };
 
 // Helper function for handling API errors
@@ -110,16 +186,8 @@ export const apiCall = async <T>(
     options.body = JSON.stringify(body);
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
-
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
+    const response = await fetchFromAPI(endpoint, options);
 
     if (!response.ok) {
       await handleAPIError(response);
@@ -127,7 +195,6 @@ export const apiCall = async <T>(
 
     return response.json();
   } catch (error: any) {
-    clearTimeout(timeoutId);
     if (error.name === "AbortError") {
       throw new Error("Request timeout");
     }
