@@ -6,11 +6,12 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 
-class AppBlockerModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+class AppBlockerModule(
+    reactContext: ReactApplicationContext
+) : ReactContextBaseJavaModule(reactContext) {
 
     private val context: ReactApplicationContext = reactContext
 
@@ -21,11 +22,13 @@ class AppBlockerModule(reactContext: ReactApplicationContext) : ReactContextBase
     @ReactMethod
     fun hasOverlayPermission(promise: Promise) {
         try {
-            val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Settings.canDrawOverlays(context)
-            } else {
-                true
-            }
+            val hasPermission =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    Settings.canDrawOverlays(context)
+                } else {
+                    true
+                }
+
             promise.resolve(hasPermission)
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
@@ -58,8 +61,9 @@ class AppBlockerModule(reactContext: ReactApplicationContext) : ReactContextBase
     @ReactMethod
     fun isAccessibilityServiceEnabled(promise: Promise) {
         try {
-            val isEnabled = FocusProtectionService.isServiceEnabled(context)
-            promise.resolve(isEnabled)
+            promise.resolve(
+                FocusProtectionService.isServiceEnabled(context)
+            )
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
         }
@@ -80,14 +84,16 @@ class AppBlockerModule(reactContext: ReactApplicationContext) : ReactContextBase
     @ReactMethod
     fun hasUsageStatsPermission(promise: Promise) {
         try {
-            val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+            val appOps =
+                context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+
             val mode = appOps.checkOpNoThrow(
                 AppOpsManager.OPSTR_GET_USAGE_STATS,
                 android.os.Process.myUid(),
                 context.packageName
             )
-            val hasPermission = mode == AppOpsManager.MODE_ALLOWED
-            promise.resolve(hasPermission)
+
+            promise.resolve(mode == AppOpsManager.MODE_ALLOWED)
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
         }
@@ -109,26 +115,40 @@ class AppBlockerModule(reactContext: ReactApplicationContext) : ReactContextBase
     fun startBlockingSession(sessionData: ReadableMap, promise: Promise) {
         try {
             val sessionId = sessionData.getString("sessionId") ?: ""
+
+            if (sessionId.isEmpty()) {
+                promise.reject("ERROR", "Session ID is required")
+                return
+            }
+
             val blockedAppsArray = sessionData.getArray("blockedApps")
             val startTime = sessionData.getDouble("startTime").toLong()
             val duration = sessionData.getInt("duration")
 
             val blockedApps = mutableListOf<BlockedApp>()
+
             if (blockedAppsArray != null) {
                 for (i in 0 until blockedAppsArray.size()) {
                     val appMap = blockedAppsArray.getMap(i)
+
                     if (appMap != null) {
-                        blockedApps.add(
-                            BlockedApp(
-                                packageName = appMap.getString("packageName") ?: "",
-                                appName = appMap.getString("appName") ?: ""
+                        val packageName =
+                            appMap.getString("packageName") ?: ""
+                        val appName =
+                            appMap.getString("appName") ?: ""
+
+                        if (packageName.isNotEmpty()) {
+                            blockedApps.add(
+                                BlockedApp(
+                                    packageName = packageName,
+                                    appName = appName
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
 
-            // Store session data
             BlockingSessionManager.startSession(
                 context = context,
                 sessionId = sessionId,
@@ -137,13 +157,16 @@ class AppBlockerModule(reactContext: ReactApplicationContext) : ReactContextBase
                 duration = duration
             )
 
-            // Notify accessibility service
-            sendEventToJS("BlockingSessionStarted", Arguments.createMap().apply {
-                putString("sessionId", sessionId)
-                putInt("blockedAppsCount", blockedApps.size)
-            })
+            sendEventToJS(
+                "BlockingSessionStarted",
+                Arguments.createMap().apply {
+                    putString("sessionId", sessionId)
+                    putInt("blockedAppsCount", blockedApps.size)
+                }
+            )
 
             promise.resolve(true)
+
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
         }
@@ -153,10 +176,14 @@ class AppBlockerModule(reactContext: ReactApplicationContext) : ReactContextBase
     fun stopBlockingSession(promise: Promise) {
         try {
             BlockingSessionManager.stopSession(context)
-            
-            sendEventToJS("BlockingSessionStopped", Arguments.createMap())
-            
+
+            sendEventToJS(
+                "BlockingSessionStopped",
+                Arguments.createMap()
+            )
+
             promise.resolve(true)
+
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
         }
@@ -165,8 +192,9 @@ class AppBlockerModule(reactContext: ReactApplicationContext) : ReactContextBase
     @ReactMethod
     fun isBlockingSessionActive(promise: Promise) {
         try {
-            val isActive = BlockingSessionManager.isSessionActive(context)
-            promise.resolve(isActive)
+            promise.resolve(
+                BlockingSessionManager.isSessionActive(context)
+            )
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
         }
@@ -196,56 +224,77 @@ class AppBlockerModule(reactContext: ReactApplicationContext) : ReactContextBase
     fun getInstalledApps(promise: Promise) {
         try {
             val packageManager = context.packageManager
-            val packages = packageManager.getInstalledApplications(0)
-            
+            val packages =
+                packageManager.getInstalledApplications(0)
+
             val installedApps = WritableNativeArray()
-            
+
             for (packageInfo in packages) {
-                // Skip system apps
-                if (packageInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0) {
+                if (
+                    packageInfo.flags and
+                    android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
+                ) {
                     continue
                 }
-                
+
                 val appMap = Arguments.createMap().apply {
                     putString("packageName", packageInfo.packageName)
-                    putString("name", packageManager.getApplicationLabel(packageInfo).toString())
+                    putString(
+                        "name",
+                        packageManager.getApplicationLabel(packageInfo).toString()
+                    )
                 }
+
                 installedApps.pushMap(appMap)
             }
-            
+
             promise.resolve(installedApps)
+
         } catch (e: Exception) {
             promise.reject("ERROR", e.message)
         }
     }
 
     @ReactMethod
-    fun addListener(eventName: String) {
-        // Required for RCTDeviceEventEmitter
-    }
+    fun addListener(eventName: String) {}
 
     @ReactMethod
-    fun removeListeners(count: Int) {
-        // Required for RCTDeviceEventEmitter
-    }
+    fun removeListeners(count: Int) {}
 
-    // Helper to send events to JavaScript
-    fun sendEventToJS(eventName: String, params: WritableMap) {
-        context
-            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-            .emit(eventName, params)
+    private fun sendEventToJS(
+        eventName: String,
+        params: WritableMap
+    ) {
+        if (context.hasActiveCatalystInstance()) {
+            context
+                .getJSModule(
+                    DeviceEventManagerModule.RCTDeviceEventEmitter::class.java
+                )
+                .emit(eventName, params)
+        }
     }
 
     companion object {
-        fun sendAppBlockedEvent(context: ReactApplicationContext, packageName: String, appName: String) {
+        fun sendAppBlockedEvent(
+            context: ReactApplicationContext,
+            packageName: String,
+            appName: String
+        ) {
+            if (!context.hasActiveCatalystInstance()) return
+
             val params = Arguments.createMap().apply {
                 putString("packageName", packageName)
                 putString("appName", appName)
-                putDouble("timestamp", System.currentTimeMillis().toDouble())
+                putDouble(
+                    "timestamp",
+                    System.currentTimeMillis().toDouble()
+                )
             }
-            
+
             context
-                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .getJSModule(
+                    DeviceEventManagerModule.RCTDeviceEventEmitter::class.java
+                )
                 .emit("AppBlocked", params)
         }
     }
