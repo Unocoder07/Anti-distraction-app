@@ -1,6 +1,9 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Polyline, Stop } from 'react-native-svg';
-import { COLORS } from '../../constants/colors';
+import { COLORS } from '@/src/constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 
 export interface TrendDataPoint {
   label: string;
@@ -23,6 +26,8 @@ export function FocusTrend({
   color = COLORS.primary,
   height = 100,
 }: FocusTrendProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const CHART_W = 280;
   const CHART_H = height;
   const PADDING = 8;
@@ -95,7 +100,7 @@ export function FocusTrend({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,

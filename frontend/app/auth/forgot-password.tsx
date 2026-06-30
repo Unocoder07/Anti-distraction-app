@@ -1,10 +1,11 @@
 // Forgot Password Screen
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
 import { authService } from '@/src/services/authService';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { router } from 'expo-router';
 import { ArrowLeft, Mail, Send } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView,
@@ -18,6 +19,8 @@ import {
 } from 'react-native';
 
 export default function ForgotPasswordScreen() {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -88,7 +91,7 @@ export default function ForgotPasswordScreen() {
 
           <Text style={styles.title}>Forgot Password?</Text>
           <Text style={styles.subtitle}>
-            Enter your email address and we'll send you instructions to reset your password.
+            Enter your email address and we&apos;ll send you instructions to reset your password.
           </Text>
 
           {/* Email Input */}
@@ -149,7 +152,7 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

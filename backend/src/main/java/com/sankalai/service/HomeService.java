@@ -3,7 +3,10 @@ package com.sankalai.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -16,6 +19,9 @@ import com.sankalai.entity.FocusSession;
 import com.sankalai.entity.PetStatus;
 import com.sankalai.entity.User;
 import com.sankalai.entity.UserStats;
+import com.sankalai.exception.BadRequestException;
+import com.sankalai.exception.ConflictException;
+import com.sankalai.exception.ResourceNotFoundException;
 import com.sankalai.repository.DailyChallengeRepository;
 import com.sankalai.repository.FocusSessionRepository;
 import com.sankalai.repository.PetStatusRepository;
@@ -28,15 +34,11 @@ public class HomeService {
     // Inner classes for level calculation
     private static class LevelInfo {
         int level;
-        long currentLevelXP;
-        long nextLevelXP;
         int progress;
         long xpToNextLevel;
 
-        LevelInfo(int level, long currentLevelXP, long nextLevelXP, int progress, long xpToNextLevel) {
+        LevelInfo(int level, int progress, long xpToNextLevel) {
             this.level = level;
-            this.currentLevelXP = currentLevelXP;
-            this.nextLevelXP = nextLevelXP;
             this.progress = progress;
             this.xpToNextLevel = xpToNextLevel;
         }
@@ -55,6 +57,7 @@ public class HomeService {
     }
 
     private static final int MAX_LEVEL = 100;
+    private static final int DAILY_DIRECTIVE_REWARD_FC = 10;
     private final UserRepository userRepository;
     private final UserStatsRepository userStatsRepository;
 
@@ -76,7 +79,7 @@ public class HomeService {
 
     public HomeDataResponse getHomeData(String userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         UserStats userStats = getUserStats(userId);
         PetStatus petStatus = getPetStatus(userId);
@@ -92,24 +95,25 @@ public class HomeService {
         HomeDataResponse.StreakInfoDTO streakInfo = new HomeDataResponse.StreakInfoDTO(
                 userStats.getCurrentStreak(),
                 userStats.getBestStreak(),
-                isTodayDone(userStats.getLastSessionDate()));
+                isTodayDone(userStats.getLastSessionDate()),
+                getTodayStudyMinutes(userId));
 
         return new HomeDataResponse(statsDTO, petDTO, challengeDTOs, streakInfo);
     }
 
     public UserStats getUserStats(String userId) {
         return userStatsRepository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("User stats not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User stats not found"));
     }
 
     public PetStatus getPetStatus(String userId) {
         return petStatusRepository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("Pet status not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Pet status not found"));
     }
 
     public List<DailyChallenge> getDailyChallenges(String userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         UserStats stats = getUserStats(userId);
         return getDailyChallenges(userId, user, stats);
     }
@@ -122,7 +126,19 @@ public class HomeService {
             challenges = generateDailyChallenges(user, stats);
         }
 
-        return challenges;
+        return normalizeDailyChallenges(challenges);
+    }
+
+    private Integer getTodayStudyMinutes(String userId) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime startOfTomorrow = today.plusDays(1).atStartOfDay();
+
+        return focusSessionRepository.findByUser_UserIdAndStartTimeBetween(userId, startOfDay, startOfTomorrow)
+                .stream()
+                .filter(session -> session.getStatus() == FocusSession.SessionStatus.COMPLETED)
+                .mapToInt(session -> session.getActualDuration() != null ? session.getActualDuration() : 0)
+                .sum();
     }
 
     @Transactional
@@ -139,7 +155,7 @@ public class HomeService {
                 stats.getCurrentLevel() < 20 ? 2 : 4,
                 "sessions",
                 false,
-                stats.getCurrentLevel() < 20 ? 30 : 60,
+                DAILY_DIRECTIVE_REWARD_FC,
                 stats.getCurrentLevel() < 20 ? 50 : 100,
                 stats.getCurrentLevel() < 20 ? DailyChallenge.Difficulty.EASY : DailyChallenge.Difficulty.MEDIUM,
                 "consistency",
@@ -155,7 +171,7 @@ public class HomeService {
                 stats.getCurrentLevel() < 30 ? 60 : 120,
                 "min",
                 false,
-                stats.getCurrentLevel() < 30 ? 40 : 80,
+                DAILY_DIRECTIVE_REWARD_FC,
                 stats.getCurrentLevel() < 30 ? 60 : 120,
                 stats.getCurrentLevel() < 30 ? DailyChallenge.Difficulty.MEDIUM : DailyChallenge.Difficulty.HARD,
                 "dedication",
@@ -175,7 +191,7 @@ public class HomeService {
                     1,
                     "session",
                     false,
-                    100,
+                    DAILY_DIRECTIVE_REWARD_FC,
                     150,
                     DailyChallenge.Difficulty.HARD,
                     "mastery",
@@ -192,7 +208,7 @@ public class HomeService {
     @Transactional
     public void recordSessionCompletion(String userId, SessionCompletionRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         UserStats stats = getUserStats(userId);
         PetStatus pet = getPetStatus(userId);
@@ -350,9 +366,76 @@ public class HomeService {
     @Transactional
     public void updateChallengeProgress(String userId, DailyChallenge.ChallengeType type, int amount) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         UserStats stats = getUserStats(userId);
         updateChallengeProgressInternal(userId, user, stats, type, amount);
+    }
+
+    @Transactional
+    public void createCustomChallenge(String userId, String title, String description) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        UserStats stats = getUserStats(userId);
+
+        String trimmedTitle = title == null ? "" : title.trim();
+        if (trimmedTitle.isEmpty()) {
+            throw new BadRequestException("Target title is required");
+        }
+
+        LocalDate today = LocalDate.now();
+        List<DailyChallenge> challenges = getDailyChallenges(userId, user, stats);
+        String newKey = getChallengeUniqueKey(DailyChallenge.ChallengeType.CUSTOM, trimmedTitle);
+        boolean alreadyExists = challenges.stream()
+                .anyMatch(challenge -> getChallengeUniqueKey(challenge).equals(newKey));
+
+        if (alreadyExists) {
+            throw new ConflictException("You already have this custom target today");
+        }
+
+        String trimmedDescription = description == null ? "" : description.trim();
+        DailyChallenge customChallenge = new DailyChallenge(user,
+                trimmedTitle,
+                trimmedDescription.isEmpty() ? "Custom target" : trimmedDescription,
+                DailyChallenge.ChallengeType.CUSTOM,
+                0,
+                1,
+                "target",
+                false,
+                DAILY_DIRECTIVE_REWARD_FC,
+                0,
+                DailyChallenge.Difficulty.EASY,
+                "custom",
+                today,
+                LocalDateTime.of(today, LocalTime.MAX));
+
+        dailyChallengeRepository.save(customChallenge);
+    }
+
+    @Transactional
+    public void completeChallenge(String userId, String challengeId) {
+        UserStats stats = getUserStats(userId);
+        DailyChallenge challenge = dailyChallengeRepository.findById(challengeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Target not found"));
+
+        if (!challenge.getUser().getUserId().equals(userId)) {
+            throw new ResourceNotFoundException("Target not found");
+        }
+
+        if (!challenge.getDate().equals(LocalDate.now())) {
+            throw new BadRequestException("Only today's targets can be completed");
+        }
+
+        normalizeChallengeReward(challenge);
+
+        if (!Boolean.TRUE.equals(challenge.getCompleted())) {
+            challenge.setProgress(challenge.getTotal());
+            challenge.setCompleted(true);
+            challenge.setCompletedAt(LocalDateTime.now());
+
+            awardRewardsInternal(stats, DAILY_DIRECTIVE_REWARD_FC, challenge.getRewardXP());
+            userStatsRepository.save(stats);
+            dailyChallengeRepository.save(challenge);
+        }
     }
 
     private void updateChallengeProgressInternal(String userId, User user, UserStats stats, DailyChallenge.ChallengeType type, int amount) {
@@ -369,13 +452,83 @@ public class HomeService {
                 if (completed && challenge.getCompletedAt() == null) {
                     challenge.setCompletedAt(LocalDateTime.now());
                     // Award challenge rewards
-                    awardRewardsInternal(stats, challenge.getRewardFP(), challenge.getRewardXP());
+                    awardRewardsInternal(stats, DAILY_DIRECTIVE_REWARD_FC, challenge.getRewardXP());
                     userStatsRepository.save(stats);
                 }
 
                 dailyChallengeRepository.save(challenge);
             }
         }
+    }
+
+    private List<DailyChallenge> normalizeDailyChallenges(List<DailyChallenge> challenges) {
+        Map<String, DailyChallenge> uniqueChallenges = new LinkedHashMap<>();
+        List<DailyChallenge> duplicateChallenges = new ArrayList<>();
+
+        for (DailyChallenge challenge : challenges) {
+            normalizeChallengeReward(challenge);
+            String key = getChallengeUniqueKey(challenge);
+            DailyChallenge primary = uniqueChallenges.get(key);
+
+            if (primary == null) {
+                uniqueChallenges.put(key, challenge);
+                continue;
+            }
+
+            mergeChallengeProgress(primary, challenge);
+            duplicateChallenges.add(challenge);
+        }
+
+        dailyChallengeRepository.saveAll(uniqueChallenges.values());
+        if (!duplicateChallenges.isEmpty()) {
+            dailyChallengeRepository.deleteAll(duplicateChallenges);
+        }
+
+        return new ArrayList<>(uniqueChallenges.values());
+    }
+
+    private void normalizeChallengeReward(DailyChallenge challenge) {
+        if (challenge.getRewardFP() == null || challenge.getRewardFP() != DAILY_DIRECTIVE_REWARD_FC) {
+            challenge.setRewardFP(DAILY_DIRECTIVE_REWARD_FC);
+        }
+    }
+
+    private void mergeChallengeProgress(DailyChallenge primary, DailyChallenge duplicate) {
+        if (Boolean.TRUE.equals(duplicate.getCompleted())) {
+            primary.setCompleted(true);
+            primary.setProgress(primary.getTotal());
+            if (primary.getCompletedAt() == null) {
+                primary.setCompletedAt(duplicate.getCompletedAt());
+            }
+            return;
+        }
+
+        int mergedProgress = Math.max(primary.getProgress(), duplicate.getProgress());
+        boolean completed = mergedProgress >= primary.getTotal();
+        primary.setProgress(Math.min(mergedProgress, primary.getTotal()));
+
+        if (completed) {
+            primary.setCompleted(true);
+            if (primary.getCompletedAt() == null) {
+                primary.setCompletedAt(LocalDateTime.now());
+            }
+        }
+    }
+
+    private String getChallengeUniqueKey(DailyChallenge challenge) {
+        return getChallengeUniqueKey(challenge.getType(), challenge.getTitle());
+    }
+
+    private String getChallengeUniqueKey(DailyChallenge.ChallengeType type, String title) {
+        if (type == DailyChallenge.ChallengeType.CUSTOM) {
+            return type.name() + ":" + normalizeKeyText(title);
+        }
+
+        return type.name();
+    }
+
+    private String normalizeKeyText(String text) {
+        return text == null ? "" : text.trim().toLowerCase();
     }
 
     // Helper methods
@@ -397,7 +550,7 @@ public class HomeService {
         }
 
         if (level >= MAX_LEVEL) {
-            return new LevelInfo(MAX_LEVEL, 0, 0, 100, 0);
+            return new LevelInfo(MAX_LEVEL, 100, 0);
         }
 
         long xpInCurrentLevel = totalXP - xpAccumulated;
@@ -405,7 +558,7 @@ public class HomeService {
         int progress = Math.min(100, (int) ((xpInCurrentLevel * 100) / xpForNextLevel));
         long xpToNextLevel = xpForNextLevel - xpInCurrentLevel;
 
-        return new LevelInfo(level, xpInCurrentLevel, xpForNextLevel, progress, xpToNextLevel);
+        return new LevelInfo(level, progress, xpToNextLevel);
     }
 
     private long getXPForLevel(int level) {

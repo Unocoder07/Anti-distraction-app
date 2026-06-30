@@ -1,8 +1,18 @@
 import type { TrendDataPoint } from '../components/analytics/FocusTrend';
 import type { WeeklyDataPoint } from '../components/analytics/WeeklyChart';
-import type { BlockedApp } from '../components/blocked/BlockedAppCard';
 import type { DailyGoal } from '../components/home/DailyGoalCard';
 import type { Achievement } from '../components/profile/AchievementCard';
+
+type MockBlockedApp = {
+  id: number;
+  name: string;
+  category: string;
+  blocked: boolean;
+  icon: string;
+  logo?: string;
+  packageName?: string;
+  bundleId?: string;
+};
 
 export const MOCK_GOALS: DailyGoal[] = [
   {
@@ -57,7 +67,7 @@ export const MOCK_TREND_DATA: TrendDataPoint[] = [
   { label: '8pm', value: 60 },
 ];
 
-export const MOCK_BLOCKED_APPS: BlockedApp[] = [
+export const MOCK_BLOCKED_APPS: MockBlockedApp[] = [
   {
     id: 1,
     name: 'Instagram',

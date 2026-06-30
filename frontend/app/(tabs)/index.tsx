@@ -1,29 +1,97 @@
 // Route: "/" → Home
-import { DailyGoalCard } from '@/src/components/home/DailyGoalCard';
-import { PetCard } from '@/src/components/home/PetCard';
+import { StreakCalendar } from '@/src/components/calendar/StreakCalendar';
+import { DailyGoalCard, type DailyGoal } from '@/src/components/home/DailyGoalCard';
 import { StatsGrid } from '@/src/components/home/StatsGrid';
-import { StreakCard } from '@/src/components/home/StreakCard';
-import { COLORS } from '@/src/constants/colors';
 import { MOCK_GOALS } from '@/src/constants/mockData';
 import { useAuthStore, useHomeStore } from '@/src/store';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
+import { toLocalMonthKey } from '@/src/utils/time';
 import { router } from 'expo-router';
 import { BarChart3, ChevronRight, Zap } from 'lucide-react-native';
-import { useEffect } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+const clampDirectiveDuration = (minutes: number) =>
+  Math.max(5, Math.min(120, Math.round(minutes)));
+
+const getRemainingDirectiveMinutes = (goal: DailyGoal) => {
+  const remaining = goal.total - goal.progress;
+
+  if (goal.unit === 'min' || goal.unit === 'm') {
+    return clampDirectiveDuration(remaining > 0 ? remaining : goal.total);
+  }
+
+  return 25;
+};
+
+const getDirectiveFocusParams = (goal: DailyGoal) => {
+  const baseParams = {
+    source: 'daily-directive',
+    directiveId: goal.id,
+    directiveTitle: goal.title,
+  };
+
+  if (goal.type === 'time') {
+    return {
+      ...baseParams,
+      flow: 'time-investment',
+      durationMinutes: String(getRemainingDirectiveMinutes(goal)),
+    };
+  }
+
+  if (goal.type === 'deep-work') {
+    return {
+      ...baseParams,
+      flow: 'time-investment',
+      durationMinutes: '90',
+    };
+  }
+
+  if (goal.type === 'custom') {
+    return {
+      ...baseParams,
+      flow: 'custom-target',
+      durationMinutes: '25',
+    };
+  }
+
+  if (!goal.type || goal.type === 'session') {
+    return {
+      ...baseParams,
+      flow: 'focus-starter',
+    };
+  }
+
+  return null;
+};
 
 export default function HomeScreen() {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Get user from auth store
   const { user } = useAuthStore();
-  
+
   // Get home data from home store
-  const { 
-    userStats, 
-    petStatus, 
-    dailyChallenges, 
+  const {
+    userStats,
+    dailyChallenges,
+    progressMarks,
     streakInfo,
     loading,
-    loadHomeData 
+    loadHomeData,
+    completeDailyChallenge,
+    createCustomChallenge
   } = useHomeStore();
+
+  const [currentMonth] = useState(() => new Date());
+  const [completingGoalId, setCompletingGoalId] = useState<string | null>(null);
+  const [creatingGoal, setCreatingGoal] = useState(false);
+  const currentMonthKey = useMemo(() => toLocalMonthKey(currentMonth), [currentMonth]);
+  const currentMonthMarks = useMemo(
+    () => progressMarks.filter((mark) => mark.date.startsWith(currentMonthKey)),
+    [currentMonthKey, progressMarks],
+  );
 
   // Load home data when user is available
   useEffect(() => {
@@ -31,7 +99,61 @@ export default function HomeScreen() {
       console.log('Loading home data for user:', user.userId);
       loadHomeData(user.userId);
     }
-  }, [user]);
+  }, [loadHomeData, user]);
+
+  const handleCompleteGoal = async (goalId: string) => {
+    if (!user) {
+      Alert.alert('Login Required', 'Please log in to complete daily directives.');
+      return;
+    }
+
+    try {
+      setCompletingGoalId(goalId);
+      await completeDailyChallenge(user.userId, goalId);
+    } catch (error) {
+      console.error('Error completing directive:', error);
+      Alert.alert('Could Not Complete', 'Please try again in a moment.');
+    } finally {
+      setCompletingGoalId(null);
+    }
+  };
+
+  const handleCreateGoal = async (title: string, description?: string) => {
+    if (!user) {
+      Alert.alert('Login Required', 'Please log in to add custom targets.');
+      return;
+    }
+
+    try {
+      setCreatingGoal(true);
+      await createCustomChallenge(user.userId, title, description);
+    } catch (error) {
+      console.error('Error creating directive:', error);
+      Alert.alert('Could Not Add Target', 'Please check the title and try again.');
+      throw error;
+    } finally {
+      setCreatingGoal(false);
+    }
+  };
+
+  const handleGoalPress = (goal: DailyGoal) => {
+    if (!user) {
+      Alert.alert('Login Required', 'Please log in to start daily directives.');
+      return;
+    }
+
+    const focusParams = getDirectiveFocusParams(goal);
+
+    if (!focusParams) {
+      void handleCompleteGoal(goal.id);
+      return;
+    }
+
+    router.push({
+      pathname: '/focus',
+      params: focusParams,
+    } as any);
+  };
 
   // Show loading indicator
   if (loading && !userStats) {
@@ -62,42 +184,42 @@ export default function HomeScreen() {
 
       {/* ── Stats Grid: Coins, Level, Achievement ── */}
       <StatsGrid
-        coins={userStats?.currentFocusPoints || 100}
+        coins={userStats?.totalFocusPoints || 100}
         level={userStats?.currentLevel || 1}
         levelProgress={userStats?.levelProgress || 0}
         achievementLevel={userStats?.achievementLevel || 'Novice I'}
         achievementName={userStats?.achievementName || 'Beginner'}
       />
 
-      {/* ── Cyber Pet ── */}
-      <PetCard 
-        mood={petStatus?.mood || 'happy'} 
-        loyalty={petStatus?.loyalty || 50} 
-        health={petStatus?.health || 100} 
-      />
-
-      {/* ── Streak ── */}
-      <StreakCard 
-        streak={streakInfo?.currentStreak || 0} 
-        bestStreak={streakInfo?.bestStreak || 0} 
-        todayDone={streakInfo?.todayDone || false} 
+      {/* ── Streak Calendar ── */}
+      <StreakCalendar
+        month={currentMonth}
+        marks={currentMonthMarks}
+        currentStreak={streakInfo?.currentStreak || 0}
+        bestStreak={streakInfo?.bestStreak || 0}
       />
 
       {/* ── Daily Directives ── */}
-      <DailyGoalCard 
-        goals={dailyChallenges.length > 0 
+      <DailyGoalCard
+        goals={dailyChallenges.length > 0
           ? dailyChallenges.map(challenge => ({
-              id: challenge.id,
-              title: challenge.title,
-              description: challenge.description,
-              reward: `+${challenge.rewardFP} FP`,
-              progress: challenge.progress,
-              total: challenge.total,
-              unit: challenge.unit,
-              completed: challenge.completed,
-            }))
+            id: challenge.id,
+            title: challenge.title,
+            description: challenge.description,
+            type: challenge.type,
+            reward: `+${challenge.rewardFP} FP`,
+            progress: challenge.progress,
+            total: challenge.total,
+            unit: challenge.unit,
+            completed: challenge.completed,
+          }))
           : MOCK_GOALS
-        } 
+        }
+        completingGoalId={completingGoalId}
+        creatingGoal={creatingGoal}
+        onCompleteGoal={handleCompleteGoal}
+        onCreateGoal={handleCreateGoal}
+        onGoalPress={handleGoalPress}
       />
 
       {/* ── Study History Banner ── */}
@@ -137,7 +259,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.background },
   container: {
     paddingTop: 52,

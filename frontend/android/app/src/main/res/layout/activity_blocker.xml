@@ -3,66 +3,105 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
-    android:background="#FFFFFF">
+    android:background="@drawable/bg_blocker_gradient">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:gravity="center"
-        android:padding="32dp"
+        android:padding="28dp"
         android:importantForAccessibility="yes">
 
-        <!-- Blocking Icon -->
-        <TextView
-            android:id="@+id/block_icon"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🛡️"
-            android:textSize="80sp"
-            android:layout_marginBottom="24dp" />
+        <!-- Icon with glowing badge -->
+        <FrameLayout
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            android:layout_marginBottom="28dp">
 
-        <!-- Blocked App Name -->
-        <TextView
-            android:id="@+id/blocked_app_name"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="App Name"
-            android:textSize="28sp"
-            android:textColor="#1F2937"
-            android:textStyle="bold"
-            android:layout_marginBottom="16dp" />
+            <!-- Soft outer glow -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/circle_icon_glow" />
 
-        <!-- Blocking Status -->
+            <!-- Inner frosted circle -->
+            <View
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_gravity="center"
+                android:background="@drawable/circle_icon_bg" />
+
+            <TextView
+                android:id="@+id/block_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="🛡️"
+                android:textSize="64sp" />
+
+        </FrameLayout>
+
+        <!-- Status pill -->
         <TextView
             android:id="@+id/blocking_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⚠️ Blocked During Focus Session"
-            android:textSize="16sp"
-            android:textColor="#EF4444"
+            android:text="⚠️  BLOCKED DURING FOCUS"
+            android:textSize="12sp"
+            android:textColor="#FECACA"
             android:textStyle="bold"
+            android:letterSpacing="0.08"
+            android:background="@drawable/status_pill_bg"
+            android:paddingLeft="16dp"
+            android:paddingRight="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
             android:layout_marginBottom="24dp" />
 
-        <!-- Message -->
-        <TextView
-            android:id="@+id/blocked_message"
+        <!-- Glass card -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="This app is blocked during your focus session.\n\nStay focused! You can do this! 💪"
-            android:textSize="16sp"
-            android:textColor="#6B7280"
+            android:orientation="vertical"
             android:gravity="center"
-            android:lineSpacingExtra="4dp"
-            android:layout_marginBottom="40dp" />
+            android:background="@drawable/card_glass"
+            android:padding="28dp"
+            android:layout_marginBottom="28dp">
+
+            <!-- Blocked App Name -->
+            <TextView
+                android:id="@+id/blocked_app_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="App Name"
+                android:textSize="30sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="12dp" />
+
+            <!-- Message -->
+            <TextView
+                android:id="@+id/blocked_message"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="This app is paused while you focus.\n\nStay with it — you've got this! 💪"
+                android:textSize="16sp"
+                android:textColor="#C7D2FE"
+                android:gravity="center"
+                android:lineSpacingExtra="6dp" />
+
+        </LinearLayout>
 
         <!-- Go Back Button -->
         <Button
             android:id="@+id/btn_go_back"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="← Return to Sankalai"
+            android:layout_height="58dp"
+            android:text="Return to Sankalai"
             android:textSize="16sp"
+            android:textStyle="bold"
             android:textColor="#FFFFFF"
             android:background="@drawable/button_primary"
             android:layout_marginBottom="12dp"
@@ -72,10 +111,10 @@
         <Button
             android:id="@+id/btn_end_session"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="End Session (-50 coins)"
+            android:layout_height="52dp"
+            android:text="End Session  ·  -50 coins"
             android:textSize="14sp"
-            android:textColor="#EF4444"
+            android:textColor="#FCA5A5"
             android:background="@drawable/button_secondary"
             android:textAllCaps="false" />
 
@@ -84,10 +123,10 @@
             android:id="@+id/motivation_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Your goals are waiting for you! 🎯"
-            android:textSize="14sp"
-            android:textColor="#9CA3AF"
-            android:layout_marginTop="24dp" />
+            android:text="Your goals are waiting for you 🎯"
+            android:textSize="13sp"
+            android:textColor="#818CF8"
+            android:layout_marginTop="28dp" />
 
     </LinearLayout>
 

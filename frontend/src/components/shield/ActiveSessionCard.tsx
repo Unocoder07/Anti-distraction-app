@@ -2,12 +2,13 @@
  * ActiveSessionCard - Running Session Card with Live Timer
  */
 
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
-import { BlockedApp } from '@/src/services/shieldSessionManager';
+import { BlockedApp, getBlockedAppTimeRemaining } from '@/src/services/shieldSessionManager';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { Trash2 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface ActiveSessionCardProps {
   app: BlockedApp;
@@ -16,16 +17,18 @@ interface ActiveSessionCardProps {
 }
 
 export function ActiveSessionCard({ app, timeRemaining, onDelete }: ActiveSessionCardProps) {
-  const [currentTime, setCurrentTime] = useState(timeRemaining);
-
-  useEffect(() => {
-    setCurrentTime(timeRemaining);
-  }, [timeRemaining]);
-
-  const minutes = Math.floor(currentTime / 60);
-  const seconds = currentTime % 60;
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const appTimeRemaining = getBlockedAppTimeRemaining(app);
+  const displayTimeRemaining = appTimeRemaining > 0 ? appTimeRemaining : timeRemaining;
+  const minutes = Math.floor(displayTimeRemaining / 60);
+  const seconds = displayTimeRemaining % 60;
   const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  const progress = timeRemaining > 0 ? (currentTime / timeRemaining) : 0;
+  const durationSeconds = (app.sessionDuration ?? 0) * 60;
+  const progress = durationSeconds > 0
+    ? Math.max(0, Math.min(1, displayTimeRemaining / durationSeconds))
+    : displayTimeRemaining > 0 ? 1 : 0;
+  const hasImageIcon = /^(data:image\/|https?:\/\/|file:\/\/|content:\/\/)/i.test(app.icon);
 
   const handleDelete = () => {
     Alert.alert(
@@ -54,7 +57,11 @@ export function ActiveSessionCard({ app, timeRemaining, onDelete }: ActiveSessio
         {/* Icon & Info */}
         <View style={styles.left}>
           <View style={styles.iconBox}>
-            <Text style={styles.icon}>{app.icon}</Text>
+            {hasImageIcon ? (
+              <Image source={{ uri: app.icon }} style={styles.logo} resizeMode="contain" />
+            ) : (
+              <Text style={styles.icon}>{app.icon}</Text>
+            )}
           </View>
           <View style={styles.info}>
             <Text style={styles.appName} numberOfLines={1}>
@@ -83,7 +90,7 @@ export function ActiveSessionCard({ app, timeRemaining, onDelete }: ActiveSessio
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
@@ -126,6 +133,11 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: 20,
+  },
+  logo: {
+    width: 30,
+    height: 30,
+    borderRadius: 7,
   },
 
   info: {

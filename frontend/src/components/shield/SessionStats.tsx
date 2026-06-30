@@ -2,23 +2,30 @@
  * SessionStats - Display Coins, Time, Status
  */
 
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { Clock, Coins, Shield } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface SessionStatsProps {
   timeRemaining: number; // seconds
   appsBlocked: number;
   status: 'active' | 'safe_mode';
+  rewardCoins: number;
 }
 
-export function SessionStats({ timeRemaining, appsBlocked, status }: SessionStatsProps) {
+export function SessionStats({ timeRemaining, appsBlocked, status, rewardCoins }: SessionStatsProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const minutes = Math.floor(timeRemaining / 60);
   const seconds = timeRemaining % 60;
   const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
-  const statusText = status === 'safe_mode' ? 'Safe Mode' : 'Active';
+  const statusText = status === 'safe_mode'
+    ? 'Safe Mode'
+    : `${appsBlocked} active`;
   const statusColor = status === 'safe_mode' ? '#f59e0b' : COLORS.primary;
 
   return (
@@ -52,14 +59,14 @@ export function SessionStats({ timeRemaining, appsBlocked, status }: SessionStat
         </View>
         <View style={styles.statContent}>
           <Text style={styles.statLabel}>On Completion</Text>
-          <Text style={[styles.statValue, { color: COLORS.warning }]}>+30 coins</Text>
+          <Text style={[styles.statValue, { color: COLORS.warning }]}>+{rewardCoins} coins</Text>
         </View>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     gap: SPACING.sm,

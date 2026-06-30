@@ -50,7 +50,8 @@ class FocusProtectionService : AccessibilityService() {
         val info = AccessibilityServiceInfo().apply {
             eventTypes =
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or
+                AccessibilityEvent.TYPE_WINDOWS_CHANGED
 
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
 
@@ -71,7 +72,8 @@ class FocusProtectionService : AccessibilityService() {
         // Listen for app switches and content updates
         if (
             event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
-            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+            event.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED
         ) {
             return
         }
@@ -81,13 +83,10 @@ class FocusProtectionService : AccessibilityService() {
         // Ignore our own app and launcher only
         if (
             packageName == this.packageName ||
+            packageName == "com.android.systemui" ||
             packageName.contains("launcher")
         ) {
-            return
-        }
-
-        // Prevent duplicate triggers
-        if (packageName == currentPackageName) {
+            currentPackageName = packageName
             return
         }
 
@@ -102,16 +101,9 @@ class FocusProtectionService : AccessibilityService() {
     private fun handleBlockedApp(packageName: String) {
         val currentTime = System.currentTimeMillis()
 
-        // Prevent repeated block popups within 2 seconds
-        if (
-            packageName == lastBlockedPackage &&
-            (currentTime - lastBlockedTime) < 2000
-        ) {
-            return
-        }
-
-        lastBlockedPackage = packageName
-        lastBlockedTime = currentTime
+        val shouldShowBlocker =
+            packageName != lastBlockedPackage ||
+            (currentTime - lastBlockedTime) >= 1000
 
         val appName =
             BlockingSessionManager.getAppName(this, packageName) ?: packageName
@@ -121,8 +113,21 @@ class FocusProtectionService : AccessibilityService() {
         // Immediately exit blocked app
         performGlobalAction(GLOBAL_ACTION_HOME)
 
+        // Always force Home for blocked apps. Only throttle the warning screen,
+        // never the actual block action.
+        if (!shouldShowBlocker) {
+            return
+        }
+
+        lastBlockedPackage = packageName
+        lastBlockedTime = currentTime
+
         // Small delay before opening blocker screen
         Handler(Looper.getMainLooper()).postDelayed({
+            if (!BlockingSessionManager.isAppBlocked(this, packageName)) {
+                return@postDelayed
+            }
+
             val intent = Intent(this, BlockerActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)

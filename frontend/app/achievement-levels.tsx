@@ -1,8 +1,9 @@
 // Route: "/achievement-levels" → Achievement Levels Screen
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
 import { profileService } from '@/src/services/profileService';
 import { useAuthStore } from '@/src/store/authStore';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { router } from 'expo-router';
 import { ArrowLeft, Award, CheckCircle, Lock, TrendingUp } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
@@ -183,6 +184,8 @@ const ACHIEVEMENT_LEVELS: AchievementLevel[] = [
 ];
 
 export default function AchievementLevelsScreen() {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { user } = useAuthStore();
   const [currentCoins, setCurrentCoins] = useState(0);
   const [currentSessions, setCurrentSessions] = useState(0);
@@ -393,7 +396,7 @@ export default function AchievementLevelsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,

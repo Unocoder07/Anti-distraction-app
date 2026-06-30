@@ -1,6 +1,9 @@
 import { Calendar } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { COLORS } from '@/src/constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 
 export interface WeeklyDataPoint {
   day: string;
@@ -25,6 +28,8 @@ export function WeeklyChart({
   barColor = COLORS.primary,
   todayIndex,
 }: WeeklyChartProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const max = maxHours ?? Math.max(...data.map((d) => d.hours), 1);
 
   return (
@@ -42,8 +47,8 @@ export function WeeklyChart({
       <View style={styles.chartArea}>
         {/* Y labels */}
         <View style={styles.yAxis}>
-          {[max, Math.round(max / 2), 0].map((v) => (
-            <Text key={v} style={styles.yLabel}>
+          {[max, Math.round(max / 2), 0].map((v, i) => (
+            <Text key={i} style={styles.yLabel}>
               {v}h
             </Text>
           ))}
@@ -88,7 +93,7 @@ export function WeeklyChart({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,

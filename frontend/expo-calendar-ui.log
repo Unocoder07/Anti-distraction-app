@@ -1,0 +1,13 @@
+
+> sankalai@1.0.0 start
+> expo start --localhost
+
+env: load .env
+env: export EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
+Starting project at C:\Users\jeetu soni\sankalai\frontend
+Logs: C:\Users\jeetu soni\sankalai\frontend\.expo\dev\logs\start.log
+React Compiler enabled
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+Logs for your project will appear below.

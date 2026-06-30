@@ -1,25 +1,30 @@
 // Route: "/profile" → Profile
 import { ProfileMenu } from '@/src/components/profile/ProfileMenu';
-import { COLORS } from '@/src/constants/colors';
+import { authService } from '@/src/services/authService';
 import { profileService } from '@/src/services/profileService';
 import { useAuthStore } from '@/src/store';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Heart, LogOut, Settings, Target, Trophy } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Camera, LogOut, Settings, Target, Trophy } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuthStore();
+  const { user, signOut, setUser } = useAuthStore();
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [profile, setProfile] = useState<any>(null);
   const [achievements, setAchievements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  useEffect(() => {
-    loadProfile();
-  }, [user]);
-
-  const loadProfile = async () => {
-    if (!user) return;
+  const loadProfile = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     
     try {
       setLoading(true);
@@ -34,7 +39,15 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      void loadProfile();
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [loadProfile]);
 
   const handleSignOut = async () => {
     try {
@@ -42,6 +55,60 @@ export default function ProfileScreen() {
       router.replace('/auth/login' as any);
     } catch (error) {
       console.error('Error signing out:', error);
+    }
+  };
+
+  const handleChangePhoto = async () => {
+    if (uploadingPhoto) return;
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Permission needed',
+          'Please allow photo library access to upload a profile picture.',
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      const newAvatar = asset.base64
+        ? `data:image/jpeg;base64,${asset.base64}`
+        : asset.uri;
+
+      setUploadingPhoto(true);
+
+      // Update UI immediately.
+      setProfile((prev: any) => (prev ? { ...prev, avatar: newAvatar } : prev));
+
+      // Persist locally so the new photo survives app restarts.
+      if (user) {
+        const updatedUser = { ...user, avatar: newAvatar };
+        setUser(updatedUser);
+        await authService.persistSession(updatedUser);
+
+        // Best-effort sync to the backend (won't block the UI if it fails).
+        try {
+          await profileService.updateUserProfile(user.userId, { avatar: newAvatar });
+        } catch (syncError) {
+          console.warn('Could not sync avatar to server:', syncError);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating photo:', error);
+      Alert.alert('Upload failed', 'Could not update your profile picture. Please try again.');
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -87,12 +154,21 @@ export default function ProfileScreen() {
 
       {/* ── User Card ── */}
       <View style={styles.userCard}>
-        <View style={styles.avatarWrap}>
-          <Image
-            source={{ uri: profile.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user?.userId }}
-            style={styles.avatar}
-          />
-        </View>
+        <Pressable style={styles.avatarContainer} onPress={handleChangePhoto} disabled={uploadingPhoto}>
+          <View style={styles.avatarWrap}>
+            <Image
+              source={{ uri: profile.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + user?.userId }}
+              style={styles.avatar}
+            />
+          </View>
+          <View style={styles.cameraBadge}>
+            {uploadingPhoto ? (
+              <ActivityIndicator size="small" color={COLORS.background} />
+            ) : (
+              <Camera size={12} color={COLORS.background} />
+            )}
+          </View>
+        </Pressable>
         <View style={styles.userInfo}>
           <Text style={styles.userName}>{profile.username}</Text>
           <Text style={styles.userRole}>Student</Text>
@@ -105,13 +181,6 @@ export default function ProfileScreen() {
           <Text style={styles.levelNum}>{profile.level}</Text>
           <Text style={styles.levelLabel}>LVL</Text>
         </View>
-      </View>
-
-      {/* ── Stats Row ── */}
-      <View style={styles.statsRow}>
-        <StatCard label="Focus Points" value={`${profile.focusPoints} FP`} valueColor="#facc15" />
-        <StatCard label="Sessions" value={`${profile.totalSessions}`} valueColor={COLORS.primary} />
-        <StatCard label="Streak" value={`${profile.currentStreak} days`} valueColor={COLORS.primary} />
       </View>
 
       {/* ── Achievements Section ── */}
@@ -165,18 +234,21 @@ export default function ProfileScreen() {
             icon: <Target size={18} color={COLORS.primary} />,
             title: 'Exam Goal Setup',
             subtitle: 'Configure your target exam',
+            onPress: () => router.push('/settings' as any),
           },
           {
-            id: 'pet',
-            icon: <Heart size={18} color="#f472b6" />,
-            title: 'Virtual Pet History',
-            subtitle: 'View entity evolution',
+            id: 'settings',
+            icon: <Settings size={18} color={COLORS.primary} />,
+            title: 'Settings',
+            subtitle: 'Profile, preferences & more',
+            onPress: () => router.push('/settings' as any),
           },
           {
             id: 'achievements',
             icon: <Trophy size={18} color="#facc15" />,
             title: 'Achievements',
             subtitle: `${unlockedAchievements.length} of ${achievements.length} unlocked`,
+            onPress: () => router.push('/achievement-levels' as any),
           },
         ]}
       />
@@ -199,26 +271,7 @@ export default function ProfileScreen() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  valueColor?: string;
-}) {
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.background },
   container: {
     paddingTop: 52,
@@ -252,6 +305,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 18,
   },
+  avatarContainer: {
+    width: 60, height: 60,
+    position: 'relative',
+  },
   avatarWrap: {
     width: 60, height: 60,
     borderRadius: 30,
@@ -261,6 +318,15 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   avatar: { width: '100%', height: '100%' },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: -2, right: -2,
+    width: 22, height: 22,
+    borderRadius: 11,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: COLORS.surface,
+  },
   userInfo: { flex: 1, gap: 2 },
   userName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   userRole: { fontSize: 12, color: COLORS.primary, fontWeight: '500' },
@@ -276,27 +342,6 @@ const styles = StyleSheet.create({
   },
   levelNum: { fontSize: 18, fontWeight: '700', color: COLORS.primary },
   levelLabel: { fontSize: 9, color: COLORS.textSecondary, fontWeight: '600', letterSpacing: 1 },
-
-  // Stats
-  statsRow: { flexDirection: 'row', gap: 10 },
-  statCard: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 14,
-    padding: 12,
-    gap: 4,
-    alignItems: 'center',
-  },
-  statLabel: {
-    fontSize: 9,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    textAlign: 'center',
-  },
-  statValue: { fontSize: 15, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
 
   // Achievements
   achievementsSection: {

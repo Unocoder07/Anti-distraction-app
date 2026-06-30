@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 
 export interface StatItem {
   icon: React.ReactNode;
@@ -18,6 +20,8 @@ interface StatsGridProps {
 }
 
 export function StatsGrid({ stats, columns = 2 }: StatsGridProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   // Split into rows of `columns`
   const rows: StatItem[][] = [];
   for (let i = 0; i < stats.length; i += columns) {
@@ -43,6 +47,8 @@ export function StatsGrid({ stats, columns = 2 }: StatsGridProps) {
 }
 
 function StatCard({ stat }: { stat: StatItem }) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <View style={styles.card}>
       <View style={styles.iconWrap}>{stat.icon}</View>
@@ -55,7 +61,7 @@ function StatCard({ stat }: { stat: StatItem }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     gap: 10,
   },

@@ -7,7 +7,7 @@ export interface RecommendedApp {
   packageName: string;
   name: string;
   icon: string;
-  category: 'Social Media' | 'Gaming' | 'Entertainment' | 'Other';
+  category: 'Social Media' | 'Gaming' | 'Entertainment' | 'Short Video' | 'Other';
   description?: string;
 }
 
@@ -73,7 +73,7 @@ export const RECOMMENDED_APPS: RecommendedApp[] = [
     packageName: 'com.zhiliaoapp.musically',
     name: 'TikTok',
     icon: '🎵',
-    category: 'Social Media',
+    category: 'Short Video',
     description: 'Short videos',
   },
 
@@ -205,7 +205,7 @@ export function getAppsByCategory(category: RecommendedApp['category']): Recomme
  * Get all categories
  */
 export function getCategories(): RecommendedApp['category'][] {
-  return ['Social Media', 'Gaming', 'Entertainment', 'Other'];
+  return ['Social Media', 'Gaming', 'Entertainment', 'Short Video', 'Other'];
 }
 
 /**

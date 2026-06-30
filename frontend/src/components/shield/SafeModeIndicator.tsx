@@ -2,7 +2,6 @@
  * SafeModeIndicator - Banner when Banking App is Active
  */
 
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
 import { ShieldCheck } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';

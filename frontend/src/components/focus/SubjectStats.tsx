@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import type { SubjectStudyData } from '@/src/types';
 import { Clock, TrendingUp } from 'lucide-react-native';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { RADIUS, SPACING } from '../../constants/spacing';
 
 interface SubjectStatsProps {
@@ -9,6 +11,8 @@ interface SubjectStatsProps {
 }
 
 export function SubjectStats({ subjectData }: SubjectStatsProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const subjects = Object.values(subjectData).sort(
     (a, b) => b.totalFocusTime - a.totalFocusTime
   );
@@ -62,7 +66,7 @@ export function SubjectStats({ subjectData }: SubjectStatsProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
   },

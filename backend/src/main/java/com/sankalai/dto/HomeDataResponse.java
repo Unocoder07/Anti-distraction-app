@@ -212,13 +212,15 @@ public class HomeDataResponse {
         private Integer currentStreak;
         private Integer bestStreak;
         private Boolean todayDone;
+        private Integer todayStudyMinutes;
 
         // Constructor
         public StreakInfoDTO() {}
-        public StreakInfoDTO(Integer currentStreak, Integer bestStreak, Boolean todayDone) {
+        public StreakInfoDTO(Integer currentStreak, Integer bestStreak, Boolean todayDone, Integer todayStudyMinutes) {
             this.currentStreak = currentStreak;
             this.bestStreak = bestStreak;
             this.todayDone = todayDone;
+            this.todayStudyMinutes = todayStudyMinutes;
         }
 
         // Getters and Setters
@@ -231,6 +233,10 @@ public class HomeDataResponse {
         public Boolean getTodayDone() { return todayDone; }
 
         public void setTodayDone(Boolean todayDone) { this.todayDone = todayDone; }
+
+        public Integer getTodayStudyMinutes() { return todayStudyMinutes; }
+
+        public void setTodayStudyMinutes(Integer todayStudyMinutes) { this.todayStudyMinutes = todayStudyMinutes; }
     }
 
     private UserStatsDTO userStats;

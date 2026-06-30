@@ -2,36 +2,47 @@
  * BreakSessionModal - Confirmation Dialog with Penalty Warning
  */
 
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { AlertTriangle } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface BreakSessionModalProps {
   visible: boolean;
+  penaltyCoins: number;
+  rewardCoins: number;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-export function BreakSessionModal({ visible, onCancel, onConfirm }: BreakSessionModalProps) {
+export function BreakSessionModal({
+  visible,
+  penaltyCoins,
+  rewardCoins,
+  onCancel,
+  onConfirm,
+}: BreakSessionModalProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.overlay} onPress={onCancel}>
         <View style={styles.modal} onStartShouldSetResponder={() => true}>
-          {/* Icon */}
           <View style={styles.iconBox}>
             <AlertTriangle size={32} color={COLORS.error} />
           </View>
 
-          {/* Content */}
           <Text style={styles.title}>End Session Early?</Text>
           <Text style={styles.description}>
             Breaking your focus session early will cost you{' '}
-            <Text style={styles.penalty}>50 coins</Text>.
+            <Text style={styles.penalty}>{penaltyCoins} coins</Text>.
           </Text>
-          <Text style={styles.tip}>💡 Tip: Complete the session to earn 30 coins instead!</Text>
+          <Text style={styles.tip}>
+            Complete the session to earn {rewardCoins} coins instead.
+          </Text>
 
-          {/* Buttons */}
           <View style={styles.buttons}>
             <Pressable
               style={({ pressed }) => [
@@ -52,7 +63,7 @@ export function BreakSessionModal({ visible, onCancel, onConfirm }: BreakSession
               ]}
               onPress={onConfirm}
             >
-              <Text style={styles.confirmButtonText}>End (-50 coins)</Text>
+              <Text style={styles.confirmButtonText}>End (-{penaltyCoins} coins)</Text>
             </Pressable>
           </View>
         </View>
@@ -61,7 +72,7 @@ export function BreakSessionModal({ visible, onCancel, onConfirm }: BreakSession
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

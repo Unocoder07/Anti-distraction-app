@@ -5,6 +5,7 @@
 
 import { Platform } from 'react-native';
 import { shieldSessionManager } from './shieldSessionManager';
+import { nativeBlockingService } from './nativeBlockingService';
 
 // Sensitive apps that trigger Safe Mode
 const SENSITIVE_APPS = new Set([
@@ -48,6 +49,21 @@ class SafeModeManager {
     return SENSITIVE_APPS.has(packageName);
   }
 
+  async refreshSensitiveAppsWhitelist(): Promise<string[]> {
+    if (Platform.OS !== 'android') {
+      return this.getSensitiveApps();
+    }
+
+    try {
+      const packages = await nativeBlockingService.scanSensitiveAppsWhitelist();
+      packages.forEach((packageName) => SENSITIVE_APPS.add(packageName));
+      return this.getSensitiveApps();
+    } catch (error) {
+      console.warn('[SafeMode] Could not refresh sensitive app whitelist:', error);
+      return this.getSensitiveApps();
+    }
+  }
+
   /**
    * Enter safe mode
    */
@@ -56,34 +72,24 @@ class SafeModeManager {
       return; // Already in safe mode for this app
     }
 
-    console.log(`[SafeMode] Entering safe mode for ${appName}`);
+    console.log(`[SafeMode] Temporarily bypassing enforcement for ${appName}`);
     
     this.inSafeMode = true;
     this.currentSensitiveApp = packageName;
     
     // Log to session
     await shieldSessionManager.enterSafeMode(appName);
-    
-    // Stop native monitoring if on Android
-    if (Platform.OS === 'android') {
-      try {
-        const { nativeBlockingService } = require('./nativeBlockingService');
-        nativeBlockingService.pauseMonitoring();
-      } catch (e) {
-        console.warn('[SafeMode] Could not pause native monitoring:', e);
-      }
-    }
   }
 
   /**
    * Exit safe mode
    */
-  async exitSafeMode(): Promise<void> {
+  async exitSafeMode(options: { resumeNative?: boolean } = {}): Promise<void> {
     if (!this.inSafeMode) {
       return; // Not in safe mode
     }
 
-    console.log(`[SafeMode] Exiting safe mode`);
+    console.log(`[SafeMode] Resuming enforcement after sensitive app`);
     
     this.inSafeMode = false;
     this.currentSensitiveApp = null;
@@ -91,15 +97,14 @@ class SafeModeManager {
     // Log to session
     await shieldSessionManager.exitSafeMode();
     
-    // Resume native monitoring if on Android
-    if (Platform.OS === 'android') {
-      try {
-        const { nativeBlockingService } = require('./nativeBlockingService');
-        nativeBlockingService.resumeMonitoring();
-      } catch (e) {
-        console.warn('[SafeMode] Could not resume native monitoring:', e);
-      }
+    if (Platform.OS === 'android' && options.resumeNative !== false) {
+      await nativeBlockingService.resumeMonitoring();
     }
+  }
+
+  clearSafeModeState(): void {
+    this.inSafeMode = false;
+    this.currentSensitiveApp = null;
   }
 
   /**
@@ -120,7 +125,8 @@ class SafeModeManager {
    * Handle foreground app change
    */
   async handleAppChange(packageName: string, appName: string): Promise<void> {
-    const isSensitive = this.isSensitiveApp(packageName);
+    const isSensitive = this.isSensitiveApp(packageName) ||
+      await nativeBlockingService.isSensitiveApp(packageName);
     
     if (isSensitive && !this.inSafeMode) {
       // Entering sensitive app

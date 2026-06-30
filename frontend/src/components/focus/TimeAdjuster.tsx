@@ -1,7 +1,14 @@
+import { useMemo } from 'react';
 import { Minus, Plus } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { RADIUS, SPACING } from '../../constants/spacing';
+
+export interface DurationPreset {
+  minutes: number;
+  label: string;
+}
 
 interface TimeAdjusterProps {
   durationMinutes: number;
@@ -9,6 +16,9 @@ interface TimeAdjusterProps {
   onDecrease: () => void;
   minMinutes?: number;
   maxMinutes?: number;
+  locked?: boolean;
+  presets?: DurationPreset[];
+  onSelectPreset?: (minutes: number) => void;
 }
 
 export function TimeAdjuster({
@@ -17,9 +27,15 @@ export function TimeAdjuster({
   onDecrease,
   minMinutes = 5,
   maxMinutes = 120,
+  locked = false,
+  presets,
+  onSelectPreset,
 }: TimeAdjusterProps) {
-  const canDecrease = durationMinutes > minMinutes;
-  const canIncrease = durationMinutes < maxMinutes;
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const canDecrease = !locked && durationMinutes > minMinutes;
+  const canIncrease = !locked && durationMinutes < maxMinutes;
+  const showPresets = !locked && !!presets?.length && !!onSelectPreset;
 
   return (
     <View style={styles.container}>
@@ -47,13 +63,43 @@ export function TimeAdjuster({
         </Pressable>
       </View>
       <Text style={styles.hint}>
-        Adjust your focus session length (5-120 minutes)
+        {locked ? 'Synced with your Daily Directive' : 'Adjust your focus session length (5-120 minutes)'}
       </Text>
+
+      {showPresets && (
+        <View style={styles.presetRow}>
+          {presets!.map((preset) => {
+            const selected = durationMinutes === preset.minutes;
+            return (
+              <Pressable
+                key={preset.minutes}
+                style={({ pressed }) => [
+                  styles.presetChip,
+                  selected && styles.presetChipSelected,
+                  pressed && { opacity: 0.7 },
+                ]}
+                onPress={() => onSelectPreset!(preset.minutes)}
+              >
+                <Text
+                  style={[styles.presetMinutes, selected && styles.presetAccent]}
+                >
+                  {preset.minutes}m
+                </Text>
+                <Text
+                  style={[styles.presetLabel, selected && styles.presetAccent]}
+                >
+                  {preset.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     alignItems: 'center',
     gap: SPACING.sm,
@@ -105,5 +151,42 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
     textAlign: 'center',
+  },
+  presetRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+    alignSelf: 'stretch',
+  },
+  presetChip: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: 4,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  presetChipSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: `${COLORS.primary}1a`,
+  },
+  presetMinutes: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+    fontVariant: ['tabular-nums'],
+  },
+  presetLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  presetAccent: {
+    color: COLORS.primary,
   },
 });

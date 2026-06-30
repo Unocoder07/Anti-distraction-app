@@ -85,6 +85,29 @@ class AuthService {
     }
   }
 
+  async signInWithGoogle(idToken: string): Promise<AuthResponse> {
+    try {
+      const response = await apiCall<AuthResponse>('/auth/google', 'POST', {
+        idToken,
+      });
+
+      if (response.token) {
+        await this.persistSession({
+          userId: response.userId,
+          username: response.username,
+          email: response.email,
+          avatar: response.avatar,
+          token: response.token,
+        });
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error('Google sign in error:', error);
+      throw this.handleAuthError(error);
+    }
+  }
+
   async signOut(): Promise<void> {
     try {
       await apiCall('/auth/signout', 'POST');

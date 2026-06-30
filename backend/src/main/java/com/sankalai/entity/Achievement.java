@@ -65,16 +65,19 @@ public class Achievement {
     private Category category;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean unlocked = false;
 
     private LocalDateTime unlockedAt;
 
     @Column(nullable = false)
+    @Builder.Default
     private Integer progress = 0;
 
     @Column(nullable = false)
     private Integer requirement;
 
     @Column(nullable = false)
+    @Builder.Default
     private Integer currentValue = 0;
 }

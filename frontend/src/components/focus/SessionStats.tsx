@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { Clock, Flame, Target, Trophy } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 
 export interface SessionStatsData {
   /** Elapsed seconds in current session */
@@ -20,6 +22,8 @@ interface SessionStatsProps {
 }
 
 export function SessionStats({ stats }: SessionStatsProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const elapsedMins = Math.floor(stats.elapsedSeconds / 60);
   const elapsedSecs = stats.elapsedSeconds % 60;
   const elapsedLabel =
@@ -36,8 +40,8 @@ export function SessionStats({ stats }: SessionStatsProps) {
       />
       <StatTile
         icon={<Target size={16} color="#a78bfa" />}
-        label="Cycles"
-        value={`${stats.cyclesCompleted} / ${stats.totalCycles}`}
+        label="Sessions"
+        value={`${stats.cyclesCompleted}`}
       />
       <StatTile
         icon={<Trophy size={16} color="#facc15" />}
@@ -65,6 +69,8 @@ interface StatTileProps {
 }
 
 function StatTile({ icon, label, value, valueColor }: StatTileProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <View style={styles.tile}>
       <View style={styles.tileIcon}>{icon}</View>
@@ -76,7 +82,7 @@ function StatTile({ icon, label, value, valueColor }: StatTileProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   grid: {
     flexDirection: 'row',
     gap: 10,

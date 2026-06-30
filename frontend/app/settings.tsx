@@ -1,8 +1,10 @@
 // Route: "/settings" → Settings Screen
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
 import { authService } from '@/src/services/authService';
 import { useAuthStore } from '@/src/store/authStore';
+import { useTheme, useThemeMode, useToggleTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import {
     ArrowLeft,
@@ -19,8 +21,9 @@ import {
     Volume2,
     X
 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     Image,
     Modal,
     Pressable,
@@ -121,6 +124,11 @@ const AVATAR_OPTIONS = [
 
 export default function SettingsScreen() {
   const { user, refreshUserProfile } = useAuthStore();
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const themeMode = useThemeMode();
+  const toggleTheme = useToggleTheme();
+  const darkMode = themeMode === 'dark';
   const [profile, setProfile] = useState<UserProfile>({
     username: 'Student #8492',
     avatar: AVATAR_OPTIONS[0],
@@ -137,20 +145,12 @@ export default function SettingsScreen() {
 
   // Form states
   const [tempUsername, setTempUsername] = useState('');
-  const [tempAvatar, setTempAvatar] = useState('');
-  const [tempExam, setTempExam] = useState('');
-
   // Settings states
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
 
-  useEffect(() => {
-    loadProfile();
-  }, [user]);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     if (!user) return;
     try {
       const saved = await authService.getUserProfile(user.userId);
@@ -167,7 +167,15 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('Settings: Error loading profile:', error);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      void loadProfile();
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [loadProfile]);
 
   const saveProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return;
@@ -190,6 +198,39 @@ export default function SettingsScreen() {
   const handleAvatarChange = (avatar: string) => {
     saveProfile({ avatar });
     setShowAvatarModal(false);
+  };
+
+  const handleUploadPhoto = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Permission needed',
+          'Please allow photo library access to upload a profile picture.',
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+
+      const asset = result.assets[0];
+      const newAvatar = asset.base64
+        ? `data:image/jpeg;base64,${asset.base64}`
+        : asset.uri;
+
+      handleAvatarChange(newAvatar);
+    } catch (error) {
+      console.error('Settings: Error uploading photo:', error);
+      Alert.alert('Upload failed', 'Could not update your profile picture. Please try again.');
+    }
   };
 
   const handleUsernameChange = () => {
@@ -371,15 +412,15 @@ export default function SettingsScreen() {
               <View style={styles.settingInfo}>
                 <Text style={styles.settingLabel}>Dark Mode</Text>
                 <Text style={styles.settingValue}>
-                  {darkMode ? 'Enabled' : 'Disabled'}
+                  {darkMode ? 'On — tap for Light theme' : 'Off — tap for Dark theme'}
                 </Text>
               </View>
             </View>
             <Switch
               value={darkMode}
-              onValueChange={setDarkMode}
+              onValueChange={toggleTheme}
               trackColor={{ false: COLORS.border, true: COLORS.primary }}
-              thumbColor={COLORS.background}
+              thumbColor={COLORS.surface}
             />
           </View>
         </View>
@@ -406,6 +447,11 @@ export default function SettingsScreen() {
                 <X size={20} color={COLORS.textSecondary} />
               </Pressable>
             </View>
+
+            <Pressable style={styles.uploadButton} onPress={handleUploadPhoto}>
+              <Camera size={18} color={COLORS.background} />
+              <Text style={styles.uploadButtonText}>Upload from gallery</Text>
+            </Pressable>
 
             <ScrollView
               contentContainerStyle={styles.avatarGrid}
@@ -534,7 +580,7 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -688,6 +734,22 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: COLORS.text,
+  },
+
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  uploadButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.background,
   },
 
   // Avatar Grid

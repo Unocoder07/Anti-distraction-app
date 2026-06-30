@@ -2,10 +2,12 @@
  * AppCard - Selectable App Card Component
  */
 
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { Check } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface AppCardProps {
   appName: string;
@@ -16,6 +18,10 @@ interface AppCardProps {
 }
 
 export function AppCard({ appName, icon, category, isSelected, onToggle }: AppCardProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
+  const hasImageIcon = /^(data:image\/|https?:\/\/|file:\/\/|content:\/\/)/i.test(icon);
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -27,7 +33,11 @@ export function AppCard({ appName, icon, category, isSelected, onToggle }: AppCa
     >
       {/* Icon */}
       <View style={[styles.iconBox, isSelected && styles.iconBoxSelected]}>
-        <Text style={styles.icon}>{icon}</Text>
+        {hasImageIcon ? (
+          <Image source={{ uri: icon }} style={styles.logo} resizeMode="contain" />
+        ) : (
+          <Text style={styles.icon}>{icon}</Text>
+        )}
       </View>
 
       {/* App Info */}
@@ -48,7 +58,7 @@ export function AppCard({ appName, icon, category, isSelected, onToggle }: AppCa
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -81,6 +91,11 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: 24,
+  },
+  logo: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
   },
 
   info: {

@@ -72,6 +72,8 @@ public class FocusSession {
 
     private String subjectColor;
 
+    private String origin = "manual";
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SessionStatus status = SessionStatus.ACTIVE;
@@ -173,6 +175,9 @@ public class FocusSession {
 
     public String getSubjectColor() { return subjectColor; }
     public void setSubjectColor(String subjectColor) { this.subjectColor = subjectColor; }
+
+    public String getOrigin() { return origin != null ? origin : "manual"; }
+    public void setOrigin(String origin) { this.origin = origin; }
 
     public SessionStatus getStatus() { return status; }
     public void setStatus(SessionStatus status) { this.status = status; }

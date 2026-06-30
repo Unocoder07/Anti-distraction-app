@@ -2,8 +2,8 @@ package com.sankalai.service;
 
 import com.sankalai.dto.*;
 import com.sankalai.entity.*;
+import com.sankalai.exception.ResourceNotFoundException;
 import com.sankalai.repository.*;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,17 +16,15 @@ import java.util.stream.Collectors;
 public class ProfileService {
 
     private final UserRepository userRepository;
-    private final UserStatsRepository userStatsRepository;
     private final AchievementRepository achievementRepository;
     private final HomeService homeService;
     private final FocusService focusService;
     private final BlockingService blockingService;
 
-    public ProfileService(UserRepository userRepository, UserStatsRepository userStatsRepository,
+    public ProfileService(UserRepository userRepository,
             AchievementRepository achievementRepository, HomeService homeService,
             FocusService focusService, BlockingService blockingService) {
         this.userRepository = userRepository;
-        this.userStatsRepository = userStatsRepository;
         this.achievementRepository = achievementRepository;
         this.homeService = homeService;
         this.focusService = focusService;
@@ -66,7 +64,7 @@ public class ProfileService {
      */
     public UserProfileDTO getUserProfile(String userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         UserStats userStats = homeService.getUserStats(userId);
         var focusStats = focusService.getFocusStats(userId);
@@ -208,7 +206,7 @@ public class ProfileService {
         if (toUnlock.isEmpty()) return;
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         for (AchievementDTO achievement : toUnlock) {
             Achievement userAchievement = Achievement.builder()
@@ -255,7 +253,7 @@ public class ProfileService {
     @Transactional
     public void updateUserProfile(String userId, ProfileUpdateRequest updates) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (updates.username() != null) {
             user.setUsername(updates.username());

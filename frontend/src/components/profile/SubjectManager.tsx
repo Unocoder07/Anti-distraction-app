@@ -1,8 +1,9 @@
 // Subject Manager Component
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { CheckCircle, Edit2, Plus, Trash2, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     FlatList,
     Modal,
@@ -42,6 +43,8 @@ const SUBJECT_COLORS = [
 ];
 
 export function SubjectManager({ subjects, onSubjectsChange }: SubjectManagerProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
@@ -52,9 +55,19 @@ export function SubjectManager({ subjects, onSubjectsChange }: SubjectManagerPro
   const handleAddSubject = () => {
     if (!subjectName.trim()) return;
 
+    const trimmedName = subjectName.trim();
+    const baseId = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'subject';
+    let nextIndex = subjects.length + 1;
+    let subjectId = `subject-${baseId}-${nextIndex}`;
+
+    while (subjects.some((subject) => subject.id === subjectId)) {
+      nextIndex += 1;
+      subjectId = `subject-${baseId}-${nextIndex}`;
+    }
+
     const newSubject: Subject = {
-      id: `subject-${Date.now()}`,
-      name: subjectName,
+      id: subjectId,
+      name: trimmedName,
       icon: selectedIcon,
       color: selectedColor,
       isActive: true,
@@ -267,6 +280,8 @@ function SubjectModal({
   onConfirm,
   onCancel,
 }: SubjectModalProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <View style={styles.modalOverlay}>
       <View style={styles.modalContent}>
@@ -363,7 +378,7 @@ function SubjectModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     gap: SPACING.md,
   },

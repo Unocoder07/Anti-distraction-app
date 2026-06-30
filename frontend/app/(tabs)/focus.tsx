@@ -7,17 +7,27 @@ import {
   TimeAdjuster,
   useFocusStore,
 } from "@/src/components/focus";
-import { COLORS } from "@/src/constants/colors";
 import { RADIUS, SPACING } from "@/src/constants/spacing";
 import { focusService } from "@/src/services/focusService";
 import { nativeBlockingService } from "@/src/services/nativeBlockingService";
 import { storage, STORAGE_KEYS } from "@/src/services/storage";
 import { useAuthStore } from "@/src/store/authStore";
 import { useHomeStore } from "@/src/store/homeStore";
+import { useTheme } from "@/src/theme";
+import type { ThemeColors } from "@/src/theme";
 import type { Subject } from "@/src/types";
-import { router } from "expo-router";
-import { BarChart3, Plus, X } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import {
+  BarChart3,
+  Clock,
+  Flame,
+  Plus,
+  Quote,
+  Sparkles,
+  X,
+  Zap,
+} from "lucide-react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
@@ -28,6 +38,20 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+// Motivational quotes for focus sessions
+const FOCUS_QUOTES = [
+  "The secret of getting ahead is getting started.",
+  "Deep work is the ability to focus without distraction.",
+  "You don't need more time, you need more focus.",
+  "Discipline is choosing between what you want now and what you want most.",
+  "Focus on being productive instead of busy.",
+  "The successful warrior is the average man with laser-like focus.",
+  "Where focus goes, energy flows.",
+  "Starve your distractions, feed your focus.",
+  "Small daily improvements lead to stunning results.",
+  "Flow is the mental state of full immersion and energized focus.",
+];
 
 const DEFAULT_SUBJECTS: Subject[] = [
   { id: "1", name: "History", icon: "📜", color: "#8b5cf6" },
@@ -67,7 +91,25 @@ const SUBJECT_COLORS = [
   "#a855f7",
 ];
 
+// Quick-pick session lengths shown as chips in the starter sheet
+const DURATION_PRESETS = [
+  { minutes: 15, label: "Quick" },
+  { minutes: 25, label: "Pomodoro" },
+  { minutes: 45, label: "Deep" },
+  { minutes: 60, label: "Marathon" },
+];
+
+type FocusLaunchFlow = "focus-starter" | "time-investment" | "custom-target";
+
+const getParamValue = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : value;
+
+const clampDurationMinutes = (value: number) =>
+  Number.isFinite(value) ? Math.max(5, Math.min(120, Math.round(value))) : 25;
+
 export default function FocusScreen() {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const {
     isActive,
     timeLeft,
@@ -82,15 +124,37 @@ export default function FocusScreen() {
     startSession,
     pauseSession,
     resumeSession,
+    endSession,
+    resetSitting,
     stopSession,
     tickSecond,
     loadSubjectData,
   } = useFocusStore();
 
   const { user } = useAuthStore();
-  const { refreshHomeData } = useHomeStore();
+  const { completeDailyChallenge, markFocusSessionCompleted, refreshHomeData } =
+    useHomeStore();
+  const params = useLocalSearchParams<{
+    source?: string;
+    flow?: FocusLaunchFlow;
+    durationMinutes?: string;
+    directiveTitle?: string;
+    directiveId?: string;
+  }>();
+  const launchFlow = getParamValue(params.flow) as FocusLaunchFlow | undefined;
+  const directiveTitle = getParamValue(params.directiveTitle);
+  const directiveId = getParamValue(params.directiveId);
+  const plannedDurationParam = getParamValue(params.durationMinutes);
+  const plannedDurationMinutes = plannedDurationParam
+    ? clampDurationMinutes(Number(plannedDurationParam))
+    : null;
+  const isDailyDirectiveLaunch = getParamValue(params.source) === "daily-directive";
+  const isTimeLocked = launchFlow === "time-investment" && !!plannedDurationMinutes;
+  const skipsSubjectSelection = launchFlow === "custom-target";
 
-  const [showSubjectSelect, setShowSubjectSelect] = useState(phase === "idle");
+  const [showSubjectSelect, setShowSubjectSelect] = useState(
+    phase === "idle" && !skipsSubjectSelection,
+  );
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
@@ -100,6 +164,7 @@ export default function FocusScreen() {
   const [backendSessionId, setBackendSessionId] = useState<string | null>(null);
   const [distractionCount, setDistractionCount] = useState(0);
   const [pauseCountState, setPauseCountState] = useState(0);
+  const [sessionQuote, setSessionQuote] = useState(FOCUS_QUOTES[0]);
 
   // Add subject form
   const [newSubjectName, setNewSubjectName] = useState("");
@@ -108,6 +173,15 @@ export default function FocusScreen() {
 
   // Load custom subjects and study data on mount
   useEffect(() => {
+    // Fresh entry into the focus screen starts a new sitting: clear any
+    // leftover session count from a previous visit (unless a session is
+    // somehow still in progress).
+    const { isActive: stillActive, phase: currentPhase } =
+      useFocusStore.getState();
+    if (!stillActive && currentPhase !== "done") {
+      resetSitting();
+    }
+
     void (async () => {
       const saved = await storage.load<Subject[]>(STORAGE_KEYS.CUSTOM_SUBJECTS);
       if (saved) {
@@ -115,7 +189,33 @@ export default function FocusScreen() {
       }
       await loadSubjectData();
     })();
-  }, [loadSubjectData]);
+  }, [loadSubjectData, resetSitting]);
+
+  useEffect(() => {
+    if (phase !== "idle" || sessionStarted) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setSelectedSubject(null);
+      setShowSubjectSelect(!skipsSubjectSelection);
+
+      if (isTimeLocked && plannedDurationMinutes) {
+        setDurationMinutes(plannedDurationMinutes);
+      } else if (launchFlow === "focus-starter" || launchFlow === "custom-target") {
+        setDurationMinutes(25);
+      }
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    isTimeLocked,
+    launchFlow,
+    phase,
+    plannedDurationMinutes,
+    sessionStarted,
+    skipsSubjectSelection,
+  ]);
 
   const saveCustomSubjects = async (subjects: Subject[]) => {
     await storage.save(STORAGE_KEYS.CUSTOM_SUBJECTS, subjects);
@@ -142,6 +242,14 @@ export default function FocusScreen() {
         distractionCount,
         pauseCountState,
       );
+
+      if (launchFlow === "custom-target" && directiveId) {
+        try {
+          await completeDailyChallenge(user.userId, directiveId);
+        } catch (targetError) {
+          console.error("Error completing linked custom target:", targetError);
+        }
+      }
 
       await nativeBlockingService.promptToDisableAfterSession();
 
@@ -173,8 +281,11 @@ export default function FocusScreen() {
     cyclesCompleted,
     distractionCount,
     elapsedSeconds,
+    completeDailyChallenge,
+    directiveId,
     pauseCountState,
     refreshHomeData,
+    launchFlow,
     user,
   ]);
 
@@ -190,7 +301,7 @@ export default function FocusScreen() {
     return () => clearTimeout(timeoutId);
   }, [backendSessionId, handleCompleteSession, phase, user]);
 
-  const handleStartWithSubject = async (subject: Subject) => {
+  const beginFocusSession = async (subject: Subject | null) => {
     if (!user) {
       Alert.alert("Error", "Please log in to start a session");
       return;
@@ -206,16 +317,28 @@ export default function FocusScreen() {
         user.userId,
         durationMinutes,
         totalCycles,
-        {
-          id: subject.id,
-          name: subject.name,
-          icon: subject.icon,
-          color: subject.color,
-        },
+        subject
+          ? {
+              id: subject.id,
+              name: subject.name,
+              icon: subject.icon,
+              color: subject.color,
+            }
+          : undefined,
+        launchFlow === "time-investment"
+          ? "planned"
+          : launchFlow === "custom-target"
+            ? "custom-target"
+            : "manual",
       );
 
       startSession(durationSeconds, totalCycles, subject);
-      pauseSession();
+      if (!isDailyDirectiveLaunch) {
+        pauseSession();
+      }
+      const quoteSeed = subject ? subject.id.length + subject.name.length : directiveTitle?.length || 0;
+      const quoteIndex = (quoteSeed + durationMinutes) % FOCUS_QUOTES.length;
+      setSessionQuote(FOCUS_QUOTES[quoteIndex]);
       setSessionStarted(true);
       setBackendSessionId(session.id);
       setDistractionCount(0);
@@ -226,8 +349,16 @@ export default function FocusScreen() {
       stopSession();
       setSessionStarted(false);
       setSelectedSubject(null);
-      setShowSubjectSelect(true);
+      setShowSubjectSelect(!skipsSubjectSelection);
     }
+  };
+
+  const handleStartWithSubject = async (subject: Subject) => {
+    await beginFocusSession(subject);
+  };
+
+  const handleStartCustomTarget = async () => {
+    await beginFocusSession(null);
   };
 
   const handleStop = async () => {
@@ -286,9 +417,19 @@ export default function FocusScreen() {
       return;
     }
 
+    const trimmedName = newSubjectName.trim();
+    const baseId = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "subject";
+    let nextIndex = customSubjects.length + 1;
+    let subjectId = `custom-${baseId}-${nextIndex}`;
+
+    while (customSubjects.some((subject) => subject.id === subjectId)) {
+      nextIndex += 1;
+      subjectId = `custom-${baseId}-${nextIndex}`;
+    }
+
     const newSubject: Subject = {
-      id: `custom-${Date.now()}`,
-      name: newSubjectName.trim(),
+      id: subjectId,
+      name: trimmedName,
       icon: selectedIcon,
       color: selectedColor,
       isCustom: true,
@@ -304,11 +445,27 @@ export default function FocusScreen() {
   };
 
   const handleIncreaseDuration = () => {
+    if (isTimeLocked) {
+      return;
+    }
+
     setDurationMinutes((prev) => Math.min(prev + 5, 120));
   };
 
   const handleDecreaseDuration = () => {
+    if (isTimeLocked) {
+      return;
+    }
+
     setDurationMinutes((prev) => Math.max(prev - 5, 5));
+  };
+
+  const handleSelectPreset = (minutes: number) => {
+    if (isTimeLocked) {
+      return;
+    }
+
+    setDurationMinutes(clampDurationMinutes(minutes));
   };
 
   const allSubjects = [...DEFAULT_SUBJECTS, ...customSubjects];
@@ -369,6 +526,48 @@ export default function FocusScreen() {
         label={phase === "done" ? "Complete" : "Remaining"}
       />
 
+      {/* Cycle indicator dots */}
+      {sessionStarted && (
+        <View style={styles.cycleWrap}>
+          <CycleIndicator completed={cyclesCompleted} total={totalCycles} />
+        </View>
+      )}
+
+      {/* Motivational quote */}
+      {sessionStarted && (
+        <View style={styles.quoteBox}>
+          <View style={styles.quoteIconWrap}>
+            <Quote size={14} color={COLORS.primary} />
+          </View>
+          <Text style={styles.quoteText}>{sessionQuote}</Text>
+        </View>
+      )}
+
+      {/* Active session status bar */}
+      {sessionStarted && isActive && (
+        <View style={styles.statusBar}>
+          <View style={styles.statusItem}>
+            <Flame size={14} color="#f97316" />
+            <Text style={styles.statusValue}>{streak}</Text>
+            <Text style={styles.statusLabel}>Streak</Text>
+          </View>
+          <View style={styles.statusDivider} />
+          <View style={styles.statusItem}>
+            <Zap size={14} color={COLORS.primary} />
+            <Text style={styles.statusValue}>{coinsEarnedThisSession}</Text>
+            <Text style={styles.statusLabel}>Coins</Text>
+          </View>
+          <View style={styles.statusDivider} />
+          <View style={styles.statusItem}>
+            <BarChart3 size={14} color="#a855f7" />
+            <Text style={styles.statusValue}>
+              {Math.floor(elapsedSeconds / 60)}m
+            </Text>
+            <Text style={styles.statusLabel}>Elapsed</Text>
+          </View>
+        </View>
+      )}
+
       {/* Ready to start message */}
       {sessionStarted &&
         !isActive &&
@@ -376,9 +575,22 @@ export default function FocusScreen() {
         elapsedSeconds === 0 && (
           <View style={styles.readyMessage}>
             <Text style={styles.readyText}>Press Play to Begin</Text>
-            <Text style={styles.readyHint}>Your timer is ready</Text>
+            <Text style={styles.readyHint}>
+              {selectedSubject ? "Your timer is ready" : "Start when ready"}
+            </Text>
           </View>
         )}
+
+      {!sessionStarted && skipsSubjectSelection && (
+        <View style={styles.instantStartWrap}>
+          <Text style={styles.instantTitle}>{directiveTitle || "Custom Target"}</Text>
+          <Text style={styles.instantHint}>{durationMinutes} min focus session</Text>
+          <Pressable style={styles.instantStartButton} onPress={handleStartCustomTarget}>
+            <Zap size={18} color={COLORS.background} />
+            <Text style={styles.instantStartText}>Start</Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* Session stats */}
       <View style={styles.statsWrap}>
@@ -394,14 +606,16 @@ export default function FocusScreen() {
       </View>
 
       {/* Controls */}
-      <SessionControls
-        isActive={isActive}
-        onPlayPause={handlePlayPause}
-        onStop={handleStop}
-        onShield={() => {}}
-        debugLabel="Simulate App Interruption"
-        onDebug={() => {}}
-      />
+      {sessionStarted && (
+        <SessionControls
+          isActive={isActive}
+          onPlayPause={handlePlayPause}
+          onStop={handleStop}
+          onShield={() => {}}
+          debugLabel="Simulate App Interruption"
+          onDebug={() => {}}
+        />
+      )}
 
       {/* Subject Selection Modal */}
       <Modal
@@ -415,10 +629,28 @@ export default function FocusScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            {/* Grab handle */}
+            <View style={styles.grabHandle} />
+
             {/* Header */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Start Focus Session</Text>
+              <View style={styles.modalHeaderLeft}>
+                <View style={styles.modalHeaderIcon}>
+                  <Sparkles size={18} color={COLORS.primary} />
+                </View>
+                <View style={styles.modalHeaderText}>
+                  <Text style={styles.modalTitle}>
+                    {launchFlow === "time-investment"
+                      ? "Time Investment"
+                      : "Start Focus Session"}
+                  </Text>
+                  <Text style={styles.modalHeaderSubtitle}>
+                    Set your length, then pick a subject
+                  </Text>
+                </View>
+              </View>
               <Pressable
+                style={styles.modalCloseBtn}
                 onPress={() => {
                   setShowSubjectSelect(false);
                   router.push("/" as any);
@@ -435,12 +667,20 @@ export default function FocusScreen() {
                 durationMinutes={durationMinutes}
                 onIncrease={handleIncreaseDuration}
                 onDecrease={handleDecreaseDuration}
+                locked={isTimeLocked}
+                presets={DURATION_PRESETS}
+                onSelectPreset={handleSelectPreset}
               />
             </View>
 
-            <Text style={styles.modalSubtitle}>
-              Choose a subject to focus on
-            </Text>
+            <View style={styles.subjectSectionHeader}>
+              <Clock size={14} color={COLORS.textSecondary} />
+              <Text style={styles.modalSubtitle}>
+                {isTimeLocked
+                  ? "Choose a subject for this planned time"
+                  : "Choose a subject to focus on"}
+              </Text>
+            </View>
 
             {/* Subject Grid */}
             <ScrollView
@@ -453,10 +693,19 @@ export default function FocusScreen() {
                   key={subject.id}
                   style={({ pressed }) => [
                     styles.subjectCard,
-                    pressed && { opacity: 0.7 },
+                    pressed && {
+                      borderColor: subject.color,
+                      backgroundColor: `${subject.color}12`,
+                      transform: [{ scale: 0.98 }],
+                    },
                   ]}
                   onPress={() => handleStartWithSubject(subject)}
                 >
+                  {subject.isCustom && (
+                    <View style={styles.customBadgePill}>
+                      <Text style={styles.customBadge}>Custom</Text>
+                    </View>
+                  )}
                   <View
                     style={[
                       styles.subjectIconBox,
@@ -466,15 +715,13 @@ export default function FocusScreen() {
                     <Text style={styles.subjectCardIcon}>{subject.icon}</Text>
                   </View>
                   <Text style={styles.subjectCardName}>{subject.name}</Text>
-                  {subject.isCustom && (
-                    <Text style={styles.customBadge}>Custom</Text>
-                  )}
                   <View
                     style={[
                       styles.startIndicator,
                       { backgroundColor: subject.color },
                     ]}
                   >
+                    <Zap size={11} color="#fff" fill="#fff" />
                     <Text style={styles.startText}>Start</Text>
                   </View>
                 </Pressable>
@@ -596,7 +843,7 @@ export default function FocusScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -690,6 +937,109 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
   },
+  instantStartWrap: {
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 8,
+    paddingHorizontal: 24,
+  },
+  instantTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.text,
+    textAlign: "center",
+  },
+  instantHint: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  instantStartButton: {
+    minHeight: 48,
+    minWidth: 132,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 18,
+    marginTop: 4,
+  },
+  instantStartText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.background,
+  },
+
+  // Cycle indicator
+  cycleWrap: {
+    marginTop: 12,
+    marginBottom: 4,
+  },
+
+  // Motivational quote
+  quoteBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginHorizontal: 32,
+    marginTop: 14,
+    padding: 12,
+    backgroundColor: `${COLORS.primary}08`,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}15`,
+  },
+  quoteIconWrap: {
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  quoteText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontStyle: "italic",
+    lineHeight: 18,
+    flex: 1,
+  },
+
+  // Active session status bar
+  statusBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 0,
+    marginTop: 16,
+    marginHorizontal: 32,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+  },
+  statusItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+  },
+  statusValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+  statusLabel: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  statusDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: COLORS.border,
+  },
 
   statsWrap: {
     width: "100%",
@@ -711,21 +1061,64 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     maxHeight: "85%",
   },
+  grabHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    marginBottom: SPACING.md,
+  },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    flex: 1,
+  },
+  modalHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
+    backgroundColor: `${COLORS.primary}18`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalHeaderText: {
+    flex: 1,
+    gap: 2,
+  },
+  modalHeaderSubtitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.card,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: COLORS.text,
   },
+  subjectSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
   modalSubtitle: {
     fontSize: 13,
     color: COLORS.textSecondary,
-    marginBottom: SPACING.md,
   },
   timeSection: {
     backgroundColor: COLORS.card,
@@ -754,6 +1147,8 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     minHeight: 140,
     justifyContent: "center",
+    position: "relative",
+    overflow: "hidden",
   },
   subjectIconBox: {
     width: 56,
@@ -771,15 +1166,27 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     textAlign: "center",
   },
+  customBadgePill: {
+    position: "absolute",
+    top: SPACING.sm,
+    right: SPACING.sm,
+    backgroundColor: `${COLORS.primary}1a`,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+  },
   customBadge: {
-    fontSize: 9,
+    fontSize: 8,
     color: COLORS.primary,
     textTransform: "uppercase",
     fontWeight: "700",
     letterSpacing: 0.5,
   },
   startIndicator: {
-    borderRadius: RADIUS.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: RADIUS.full,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs,
     marginTop: SPACING.xs,

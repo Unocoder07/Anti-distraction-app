@@ -9,22 +9,22 @@ import {
   BreakSessionModal,
   CategoryFilter,
   DurationPicker,
-  SafeModeIndicator,
+  PremiumModal,
   SessionCompleteModal,
   SessionStats,
 } from '@/src/components/shield';
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
+import { RecommendedApp } from '@/src/data/recommendedApps';
 import {
-  getCategories,
-  RECOMMENDED_APPS,
-  RecommendedApp,
-  searchApps,
-} from '@/src/data/recommendedApps';
-import { BlockedApp } from '@/src/services/shieldSessionManager';
-import { useShieldStore } from '@/src/store/newShieldStore';
+  BlockedApp,
+  SHIELD_BREAK_PENALTY_COINS,
+  calculateShieldReward,
+} from '@/src/services/shieldSessionManager';
+import { FREE_APP_LIMIT, useShieldStore } from '@/src/store/newShieldStore';
 import { installedAppsFilter } from '@/src/services/installedAppsFilter';
-import { Info, Play, Search, X } from 'lucide-react-native';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
+import { ArrowLeft, Play, Plus, Search, Shield as ShieldIcon, X } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -36,9 +36,11 @@ import {
   View,
 } from 'react-native';
 
-type Category = 'All' | 'Social Media' | 'Gaming' | 'Entertainment';
+type Category = 'All' | 'Social Media' | 'Gaming' | 'Entertainment' | 'Short Video';
 
 export default function ShieldScreen() {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const {
     selectedApps,
     selectApp,
@@ -50,15 +52,22 @@ export default function ShieldScreen() {
     currentSession,
     timeRemaining,
     isSessionActive,
+    lastCompletedReward,
     startSession,
     endSession,
     removeBlockedApp,
     loadCurrentSession,
-    inSafeMode,
-    safeModeApp,
     isLoading,
     error,
     setError,
+    addAppsToSession,
+    clearCompletedReward,
+    showPremiumModal,
+    setShowPremiumModal,
+    premiumModalReason,
+    subscription,
+    currentAppLimit,
+    loadSubscription,
   } = useShieldStore();
 
   const [selectedCategory, setSelectedCategory] = useState<Category>('All');
@@ -66,22 +75,35 @@ export default function ShieldScreen() {
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [completedCoins, setCompletedCoins] = useState(0);
+  const [completedDuration, setCompletedDuration] = useState(selectedDuration);
   const [appsLoading, setAppsLoading] = useState(true);
+  const [showAddApps, setShowAddApps] = useState(false);
+
+  // Apps already blocked in the active session (0 when no session)
+  const blockedCount = currentSession?.blockedApps.length ?? 0;
+  const activeRewardCoins = calculateShieldReward(blockedCount);
+  // True when we are adding apps on top of a running session
+  const isAddingToSession = isSessionActive && !!currentSession && showAddApps;
+  // Current-plan slots left for blocking more apps right now
+  const slotsLeft = currentAppLimit === null ? null : Math.max(0, currentAppLimit - blockedCount);
+  const blockedPackages = useMemo(
+    () => new Set(currentSession?.blockedApps.map((app) => app.packageName) ?? []),
+    [currentSession],
+  );
 
   // Load session and installed apps on mount
   useEffect(() => {
     const initialize = async () => {
-      loadCurrentSession();
+      await loadSubscription();
+      await loadCurrentSession();
       
       // Load installed apps
-      if (!installedAppsFilter.isReady()) {
-        await installedAppsFilter.loadInstalledApps();
-      }
+      await installedAppsFilter.refresh();
       setAppsLoading(false);
     };
     
     initialize();
-  }, []);
+  }, [loadCurrentSession, loadSubscription]);
 
   // Filter apps by category and search - ONLY INSTALLED APPS
   const filteredApps = useMemo(() => {
@@ -108,6 +130,10 @@ export default function ShieldScreen() {
 
   // Toggle app selection
   const handleToggleApp = (app: RecommendedApp) => {
+    if (isAddingToSession && blockedPackages.has(app.packageName)) {
+      return;
+    }
+
     const blockedApp: BlockedApp = {
       packageName: app.packageName,
       appName: app.name,
@@ -133,26 +159,52 @@ export default function ShieldScreen() {
     await startSession();
   };
 
+  // Open the "add more apps" selection while a session is running
+  const handleOpenAddApps = () => {
+    // Already at the free limit -> show premium upsell instead
+    if (currentAppLimit !== null && blockedCount >= currentAppLimit) {
+      setShowPremiumModal(true);
+      return;
+    }
+    clearSelection();
+    setSearchQuery('');
+    setSelectedCategory('All');
+    setShowAddApps(true);
+  };
+
+  // Cancel adding apps and return to the active session view
+  const handleCancelAddApps = () => {
+    clearSelection();
+    setShowAddApps(false);
+  };
+
+  // Confirm adding the selected apps to the running session
+  const handleConfirmAddApps = async () => {
+    if (selectedApps.length === 0) {
+      setError('Please select at least one app to add');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    await addAppsToSession();
+    setShowAddApps(false);
+  };
+
   // End session (break early)
   const handleBreakSession = async () => {
     setShowBreakModal(false);
     const coinsLost = await endSession(true);
-    // Show penalty notification (could add a penalty modal here)
     console.log(`Session broken. Lost ${coinsLost} coins.`);
   };
 
-  // Auto-complete session when time runs out
   useEffect(() => {
-    if (isSessionActive && timeRemaining === 0) {
-      handleCompleteSession();
+    if (!lastCompletedReward) {
+      return;
     }
-  }, [isSessionActive, timeRemaining]);
 
-  const handleCompleteSession = async () => {
-    const coins = await endSession(false);
-    setCompletedCoins(coins);
+    setCompletedCoins(lastCompletedReward.coins);
+    setCompletedDuration(lastCompletedReward.duration);
     setShowCompleteModal(true);
-  };
+  }, [lastCompletedReward]);
 
   return (
     <View style={styles.screen}>
@@ -163,7 +215,10 @@ export default function ShieldScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerIconBox}>
+            <ShieldIcon size={24} color={COLORS.primary} fill={`${COLORS.primary}20`} />
+          </View>
+          <View style={styles.headerText}>
             <Text style={styles.title}>Shield</Text>
             <Text style={styles.subtitle}>Block distractions, stay focused</Text>
           </View>
@@ -177,7 +232,7 @@ export default function ShieldScreen() {
         )}
 
         {/* Active Session Section */}
-        {isSessionActive && currentSession ? (
+        {isSessionActive && currentSession && !showAddApps ? (
           <View style={styles.activeSessionSection}>
             <Text style={styles.sectionTitle}>Active Session</Text>
 
@@ -185,11 +240,9 @@ export default function ShieldScreen() {
             <SessionStats
               timeRemaining={timeRemaining}
               appsBlocked={currentSession.blockedApps.length}
-              status={inSafeMode ? 'safe_mode' : 'active'}
+              status="active"
+              rewardCoins={activeRewardCoins}
             />
-
-            {/* Safe Mode Indicator */}
-            {inSafeMode && safeModeApp && <SafeModeIndicator appName={safeModeApp} />}
 
             {/* Blocked Apps List */}
             <View style={styles.blockedAppsList}>
@@ -203,6 +256,22 @@ export default function ShieldScreen() {
               ))}
             </View>
 
+            {/* Add Another App to Block */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.addButton,
+                pressed && styles.addButtonPressed,
+              ]}
+              onPress={handleOpenAddApps}
+            >
+              <Plus size={18} color={COLORS.primary} />
+              <Text style={styles.addButtonText}>
+                {currentAppLimit !== null && blockedCount >= currentAppLimit
+                  ? 'Block more apps (Premium)'
+                  : `Add app to block (${slotsLeft === null ? 'unlimited' : slotsLeft} left)`}
+              </Text>
+            </Pressable>
+
             {/* End Session Button */}
             <Pressable
               style={({ pressed }) => [
@@ -211,14 +280,35 @@ export default function ShieldScreen() {
               ]}
               onPress={() => setShowBreakModal(true)}
             >
-              <Text style={styles.endButtonText}>End Session (-50 coins)</Text>
+              <Text style={styles.endButtonText}>
+                End Session (-{SHIELD_BREAK_PENALTY_COINS} coins)
+              </Text>
             </Pressable>
           </View>
         ) : (
           <>
             {/* App Selection Section */}
             <View style={styles.selectionSection}>
-              <Text style={styles.sectionTitle}>Select Apps to Block</Text>
+              {isAddingToSession ? (
+                <View style={styles.addHeaderRow}>
+                  <Pressable
+                    style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+                    onPress={handleCancelAddApps}
+                  >
+                    <ArrowLeft size={20} color={COLORS.text} />
+                  </Pressable>
+                  <View style={styles.addHeaderText}>
+                    <Text style={styles.sectionTitle}>Add Apps to Block</Text>
+                    <Text style={styles.addHeaderHint}>
+                      {slotsLeft === null
+                        ? 'Unlimited premium slots available'
+                        : `${slotsLeft} of ${currentAppLimit} slots remaining`}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.sectionTitle}>Select Apps to Block</Text>
+              )}
 
               {/* Search Bar */}
               <View style={styles.searchBar}>
@@ -267,7 +357,7 @@ export default function ShieldScreen() {
                         appName={app.name}
                         icon={app.icon}
                         category={app.category}
-                        isSelected={isAppSelected(app.packageName)}
+                        isSelected={isAppSelected(app.packageName) || (isAddingToSession && blockedPackages.has(app.packageName))}
                         onToggle={() => handleToggleApp(app)}
                       />
                     ))}
@@ -275,7 +365,9 @@ export default function ShieldScreen() {
 
                   {filteredApps.length === 0 && (
                     <View style={styles.emptyState}>
-                      <Text style={styles.emptyIcon}>�</Text>
+                      <View style={styles.emptyIconBox}>
+                        <ShieldIcon size={28} color={COLORS.primary} />
+                      </View>
                       <Text style={styles.emptyText}>
                         {searchQuery.trim() 
                           ? 'No matching apps found'
@@ -291,44 +383,56 @@ export default function ShieldScreen() {
               )}
             </View>
 
-            {/* Duration Picker */}
-            <View style={styles.durationSection}>
-              <DurationPicker selected={selectedDuration} onSelect={setDuration} />
-            </View>
-
-            {/* Start Button */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.startButton,
-                selectedApps.length === 0 && styles.startButtonDisabled,
-                pressed && styles.startButtonPressed,
-              ]}
-              onPress={handleStartSession}
-              disabled={selectedApps.length === 0 || isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Play size={20} color="#fff" fill="#fff" />
-                  <Text style={styles.startButtonText}>Start Focus Session</Text>
-                </>
-              )}
-            </Pressable>
-
-            {/* Banking Info Card */}
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconBox}>
-                <Info size={16} color={COLORS.primary} />
+            {/* Duration Picker - only when starting a new session */}
+            {!isAddingToSession && (
+              <View style={styles.durationSection}>
+                <DurationPicker selected={selectedDuration} onSelect={setDuration} />
               </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoTitle}>Banking Apps Stay Safe</Text>
-                <Text style={styles.infoText}>
-                  When you open a banking or payment app, monitoring automatically pauses. Your
-                  session continues without penalty.
-                </Text>
-              </View>
-            </View>
+            )}
+
+            {/* Primary Action Button */}
+            {isAddingToSession ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.startButton,
+                  selectedApps.length === 0 && styles.startButtonDisabled,
+                  pressed && styles.startButtonPressed,
+                ]}
+                onPress={handleConfirmAddApps}
+                disabled={selectedApps.length === 0 || isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Plus size={20} color="#fff" />
+                    <Text style={styles.startButtonText}>
+                      Add to Session
+                      {selectedApps.length > 0 ? ` (${selectedApps.length})` : ''}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.startButton,
+                  selectedApps.length === 0 && styles.startButtonDisabled,
+                  pressed && styles.startButtonPressed,
+                ]}
+                onPress={handleStartSession}
+                disabled={selectedApps.length === 0 || isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Play size={20} color="#fff" fill="#fff" />
+                    <Text style={styles.startButtonText}>Start Focus Session</Text>
+                  </>
+                )}
+              </Pressable>
+            )}
           </>
         )}
       </ScrollView>
@@ -336,6 +440,8 @@ export default function ShieldScreen() {
       {/* Modals */}
       <BreakSessionModal
         visible={showBreakModal}
+        penaltyCoins={SHIELD_BREAK_PENALTY_COINS}
+        rewardCoins={activeRewardCoins}
         onCancel={() => setShowBreakModal(false)}
         onConfirm={handleBreakSession}
       />
@@ -343,14 +449,28 @@ export default function ShieldScreen() {
       <SessionCompleteModal
         visible={showCompleteModal}
         coinsEarned={completedCoins}
-        duration={selectedDuration}
-        onClose={() => setShowCompleteModal(false)}
+        duration={completedDuration}
+        onClose={() => {
+          setShowCompleteModal(false);
+          clearCompletedReward();
+        }}
+      />
+
+      <PremiumModal
+        visible={showPremiumModal}
+        currentPlan={subscription}
+        currentAppLimit={currentAppLimit}
+        freeAppLimit={FREE_APP_LIMIT}
+        blockedAppsCount={blockedCount}
+        selectedAppsCount={selectedApps.length}
+        reason={premiumModalReason}
+        onClose={() => setShowPremiumModal(false)}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -368,7 +488,25 @@ const styles = StyleSheet.create({
   },
 
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
     marginBottom: SPACING.xs,
+  },
+
+  headerIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: `${COLORS.primary}12`,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}25`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  headerText: {
+    flex: 1,
   },
 
   title: {
@@ -432,6 +570,62 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.error,
+  },
+
+  // Add App Button (active session)
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    backgroundColor: `${COLORS.primary}10`,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}40`,
+    marginTop: SPACING.sm,
+  },
+
+  addButtonPressed: {
+    opacity: 0.7,
+  },
+
+  addButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+
+  // Add-mode header
+  addHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  backButtonPressed: {
+    opacity: 0.6,
+  },
+
+  addHeaderText: {
+    flex: 1,
+  },
+
+  addHeaderHint: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
 
   // Selection Section Styles
@@ -503,8 +697,13 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
 
-  emptyIcon: {
-    fontSize: 48,
+  emptyIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: `${COLORS.primary}12`,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   emptyText: {
@@ -554,42 +753,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
-  },
-
-  // Info Card
-  infoCard: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    backgroundColor: `${COLORS.primary}10`,
-    borderWidth: 1,
-    borderColor: `${COLORS.primary}30`,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-  },
-
-  infoIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: `${COLORS.primary}20`,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  infoContent: {
-    flex: 1,
-    gap: 4,
-  },
-
-  infoTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.primary,
-  },
-
-  infoText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    lineHeight: 16,
   },
 });

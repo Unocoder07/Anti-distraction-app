@@ -24,4 +24,5 @@ public class StartSessionRequest {
     private String subjectName;
     private String subjectIcon;
     private String subjectColor;
+    private String origin;
 }

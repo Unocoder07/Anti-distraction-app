@@ -1,0 +1,17 @@
+
+> sankalai@1.0.0 start
+> expo start --port 8081
+
+env: load .env
+env: export EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+Starting project at C:\Users\jeetu soni\sankalai\frontend
+Logs: C:\Users\jeetu soni\sankalai\frontend\.expo\dev\logs\start.log
+React Compiler enabled
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+λ Bundled 15061ms node_modules\@expo\router-server\node\render.js (3183 modules)
+[API] Base URL: http://localhost:8083/api
+[API] Base URL fallbacks: [ 'http://localhost:8083/api' ]
+Web Bundled 16602ms node_modules\expo-router\entry.js (3133 modules)

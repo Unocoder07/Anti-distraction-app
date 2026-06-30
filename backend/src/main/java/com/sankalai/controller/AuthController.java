@@ -2,6 +2,7 @@ package com.sankalai.controller;
 
 import com.sankalai.dto.AuthRequest;
 import com.sankalai.dto.AuthResponse;
+import com.sankalai.dto.GoogleSignInRequest;
 import com.sankalai.dto.SignUpRequest;
 import com.sankalai.service.AuthService;
 import jakarta.validation.Valid;
@@ -20,12 +21,10 @@ public class AuthController {
 
     @PostMapping("/signup")
     public ResponseEntity<?> signUp(@Valid @RequestBody SignUpRequest request) {
-        try {
-            AuthResponse response = authService.signUp(request);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
-        }
+        // Validation/conflict/other errors are mapped centrally by GlobalExceptionHandler
+        // (e.g. duplicate email/username → 409 Conflict).
+        AuthResponse response = authService.signUp(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/signin")
@@ -36,6 +35,17 @@ public class AuthController {
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new ErrorResponse("Invalid email or password"));
+        }
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<?> signInWithGoogle(@Valid @RequestBody GoogleSignInRequest request) {
+        try {
+            AuthResponse response = authService.signInWithGoogle(request);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse(e.getMessage()));
         }
     }
 

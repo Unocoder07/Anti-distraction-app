@@ -3,18 +3,23 @@ package com.sankalai.service;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sankalai.dto.*;
 import com.sankalai.entity.FocusSession;
 import com.sankalai.entity.User;
+import com.sankalai.exception.ResourceNotFoundException;
+import com.sankalai.exception.UnauthorizedActionException;
 import com.sankalai.repository.FocusSessionRepository;
 import com.sankalai.repository.UserRepository;
-import com.sankalai.repository.UserStatsRepository;
 
 @Service
 public class FocusService {
+
+    private static final Logger log = LoggerFactory.getLogger(FocusService.class);
 
     // Record types
     public record SubjectInfo(String id, String name, String icon, String color) {
@@ -29,16 +34,13 @@ public class FocusService {
 
     private final UserRepository userRepository;
     private final FocusSessionRepository focusSessionRepository;
-    private final UserStatsRepository userStatsRepository;
     private final BlockingService blockingService;
     private final HomeService homeService;
 
     public FocusService(UserRepository userRepository, FocusSessionRepository focusSessionRepository,
-            UserStatsRepository userStatsRepository, BlockingService blockingService,
-            HomeService homeService) {
+            BlockingService blockingService, HomeService homeService) {
         this.userRepository = userRepository;
         this.focusSessionRepository = focusSessionRepository;
-        this.userStatsRepository = userStatsRepository;
         this.blockingService = blockingService;
         this.homeService = homeService;
     }
@@ -51,9 +53,10 @@ public class FocusService {
             String userId,
             Integer duration,
             Integer cycles,
-            SubjectInfo subject) {
+            SubjectInfo subject,
+            String origin) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // Determine session type
         FocusSession.SessionType type;
@@ -68,6 +71,21 @@ public class FocusService {
         FocusSession session = new FocusSession(user, LocalDateTime.now(), duration, type,
                 cycles != null ? cycles : 1, 0, FocusSession.SessionStatus.ACTIVE,
                 0, 0, 0, 100, 0);
+
+        if (subject != null) {
+            session.setSubjectId(subject.id());
+            session.setSubject(subject.name());
+            session.setSubjectIcon(subject.icon());
+            session.setSubjectColor(subject.color());
+        }
+
+        if ("planned".equalsIgnoreCase(origin)) {
+            session.setOrigin("planned");
+        } else if ("custom-target".equalsIgnoreCase(origin)) {
+            session.setOrigin("custom-target");
+        } else {
+            session.setOrigin("manual");
+        }
 
         // Set legacy fields for backward compatibility
         session.setDurationMinutes(duration);
@@ -95,10 +113,10 @@ public class FocusService {
             Integer distractionCount,
             Integer pauseCount) {
         FocusSession session = focusSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
 
         if (!session.getUser().getUserId().equals(userId)) {
-            throw new RuntimeException("Unauthorized");
+            throw new UnauthorizedActionException("You do not have access to this session");
         }
 
         // Calculate focus score (0-100)
@@ -160,10 +178,10 @@ public class FocusService {
     @Transactional
     public void breakFocusSession(String sessionId, String userId, Integer actualDuration) {
         FocusSession session = focusSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
 
         if (!session.getUser().getUserId().equals(userId)) {
-            throw new RuntimeException("Unauthorized");
+            throw new UnauthorizedActionException("You do not have access to this session");
         }
 
         session.setActualDuration(actualDuration);
@@ -186,7 +204,7 @@ public class FocusService {
     @Transactional
     public void pauseFocusSession(String sessionId) {
         FocusSession session = focusSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
 
         session.setStatus(FocusSession.SessionStatus.PAUSED);
         focusSessionRepository.save(session);
@@ -198,7 +216,7 @@ public class FocusService {
     @Transactional
     public void resumeFocusSession(String sessionId) {
         FocusSession session = focusSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
 
         session.setStatus(FocusSession.SessionStatus.ACTIVE);
         focusSessionRepository.save(session);
@@ -210,10 +228,25 @@ public class FocusService {
     @Transactional
     public void recordDistraction(String sessionId) {
         FocusSession session = focusSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
 
         session.setDistractionCount((session.getDistractionCount() != null ? session.getDistractionCount() : 0) + 1);
         focusSessionRepository.save(session);
+    }
+
+    /**
+     * Delete a focus session
+     */
+    @Transactional
+    public void deleteFocusSession(String sessionId, String userId) {
+        FocusSession session = focusSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
+
+        if (!session.getUser().getUserId().equals(userId)) {
+            throw new UnauthorizedActionException("You do not have access to this session");
+        }
+
+        focusSessionRepository.delete(session);
     }
 
     /**
@@ -282,7 +315,7 @@ public class FocusService {
             Integer minutes) {
         // This would require a SubjectStudyData entity
         // For now, just log
-        System.out.println("Updating subject study data for " + subjectName + ": " + minutes + " minutes");
+        log.debug("Updating subject study data for {}: {} minutes", subjectName, minutes);
     }
 
     /**
@@ -352,7 +385,7 @@ public class FocusService {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Error starting blocking for session: " + e.getMessage());
+            log.error("Error starting blocking for session", e);
         }
     }
 
@@ -366,7 +399,7 @@ public class FocusService {
                 blockingService.completeBlockingSession(userId, session.getId());
             }
         } catch (Exception e) {
-            System.err.println("Error completing blocking for session: " + e.getMessage());
+            log.error("Error completing blocking for session", e);
         }
     }
 
@@ -380,7 +413,7 @@ public class FocusService {
                 blockingService.breakBlockingSession(userId, session.getId());
             }
         } catch (Exception e) {
-            System.err.println("Error breaking blocking for session: " + e.getMessage());
+            log.error("Error breaking blocking for session", e);
         }
     }
 }

@@ -1,7 +1,8 @@
-import { COLORS } from "@/src/constants/colors";
 import { nativeBlockingService } from "@/src/services/nativeBlockingService";
+import { useTheme } from "@/src/theme";
+import type { ThemeColors } from "@/src/theme";
 import { BarChart2, CheckCircle, Circle, Shield } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -18,6 +19,8 @@ interface NativeBlockingSetupProps {
 export function NativeBlockingSetup({
   onSetupComplete,
 }: NativeBlockingSetupProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [permissions, setPermissions] = useState({
     overlay: true,
     accessibility: false,
@@ -173,6 +176,8 @@ function PermissionItem({
   description,
   granted,
 }: PermissionItemProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <View
       style={[styles.permissionItem, granted && styles.permissionItemGranted]}
@@ -191,7 +196,7 @@ function PermissionItem({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,

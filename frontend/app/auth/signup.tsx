@@ -1,11 +1,12 @@
 // Sign Up Screen
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
 import { authService } from '@/src/services/authService';
 import { useAuthStore } from '@/src/store/authStore';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { router } from 'expo-router';
 import { CheckCircle, Eye, EyeOff, Lock, Mail, User } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -19,6 +20,8 @@ import {
 } from 'react-native';
 
 export default function SignupScreen() {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const setSession = useAuthStore((state) => state.setSession);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -82,7 +85,7 @@ export default function SignupScreen() {
     try {
       const authResponse = await authService.signUp(email.trim().toLowerCase(), password, name);
       await setSession(authResponse);
-      router.replace('/(tabs)' as any);
+      router.replace('/auth/exam-selection' as any);
     } catch (error: any) {
       console.error('Signup error:', error);
       setErrors({ general: error.message });
@@ -285,7 +288,7 @@ export default function SignupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

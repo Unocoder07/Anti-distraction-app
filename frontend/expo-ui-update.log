@@ -1,0 +1,11 @@
+Starting project at C:\Users\jeetu soni\sankalai\frontend
+Logs: C:\Users\jeetu soni\sankalai\frontend\.expo\dev\logs\start.log
+React Compiler enabled
+Starting Metro Bundler
+
+Waiting on http://localhost:8082
+Logs for your project will appear below.
+Web Bundled 248128ms node_modules\expo-router\entry.js (3124 modules)
+λ Bundled 248741ms node_modules\@expo\router-server\node\render.js (3174 modules)
+[API] Base URL: http://localhost:8083/api
+[API] Base URL fallbacks: [ 'http://localhost:8083/api' ]

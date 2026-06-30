@@ -58,7 +58,11 @@ object BlockingSessionManager {
     }
 
     fun isSessionActive(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_IS_ACTIVE, false)
+        if (!isSessionFlagActive(context)) {
+            return false
+        }
+
+        return getBlockedApps(context).isNotEmpty()
     }
 
     fun isPaused(context: Context): Boolean {
@@ -86,14 +90,15 @@ object BlockingSessionManager {
 
         return try {
             val type = object : TypeToken<List<BlockedApp>>() {}.type
-            gson.fromJson(blockedAppsJson, type) ?: emptyList()
+            val blockedApps: List<BlockedApp> = gson.fromJson(blockedAppsJson, type) ?: emptyList()
+            pruneExpiredApps(context, blockedApps)
         } catch (e: Exception) {
             emptyList()
         }
     }
 
     fun isAppBlocked(context: Context, packageName: String): Boolean {
-        if (!isSessionActive(context) || isPaused(context)) {
+        if (!isSessionFlagActive(context) || isPaused(context)) {
             return false
         }
 
@@ -110,5 +115,47 @@ object BlockingSessionManager {
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun isSessionFlagActive(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_IS_ACTIVE, false)
+    }
+
+    private fun pruneExpiredApps(context: Context, blockedApps: List<BlockedApp>): List<BlockedApp> {
+        if (blockedApps.isEmpty()) {
+            stopSession(context)
+            return emptyList()
+        }
+
+        val prefs = getPrefs(context)
+        val sessionStartTime = prefs.getLong(KEY_START_TIME, 0L)
+        val sessionDuration = prefs.getInt(KEY_DURATION, 0)
+        val fallbackEndsAt =
+            if (sessionStartTime > 0L && sessionDuration > 0) {
+                sessionStartTime + sessionDuration * 60_000L
+            } else {
+                Long.MAX_VALUE
+            }
+        val now = System.currentTimeMillis()
+
+        val activeApps = blockedApps.filter { app ->
+            val appEndsAt = if (app.sessionEndsAt > 0L) app.sessionEndsAt else fallbackEndsAt
+            now < appEndsAt
+        }
+
+        if (activeApps.size == blockedApps.size) {
+            return blockedApps
+        }
+
+        if (activeApps.isEmpty()) {
+            stopSession(context)
+            return emptyList()
+        }
+
+        prefs.edit()
+            .putString(KEY_BLOCKED_APPS, gson.toJson(activeApps))
+            .apply()
+
+        return activeApps
     }
 }

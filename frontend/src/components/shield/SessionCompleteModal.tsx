@@ -2,9 +2,11 @@
  * SessionCompleteModal - Celebration with Rewards
  */
 
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { Award, Coins } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 interface SessionCompleteModalProps {
@@ -20,6 +22,8 @@ export function SessionCompleteModal({
   duration,
   onClose,
 }: SessionCompleteModalProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
@@ -63,7 +67,7 @@ export function SessionCompleteModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',

@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 
 interface CustomCardProps {
   children: React.ReactNode;
@@ -11,6 +13,8 @@ interface CustomCardProps {
 }
 
 export function CustomCard({ children, onPress, style, accent = false }: CustomCardProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const card = (
     <View
       style={[
@@ -37,7 +41,7 @@ export function CustomCard({ children, onPress, style, accent = false }: CustomC
   return card;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,

@@ -20,6 +20,8 @@ export const STORAGE_KEYS = {
   SUBJECT_STUDY_DATA: 'subject_study_data',
   SESSION_DURATION: 'session_duration',
   SHIELD_MODE_ENABLED: 'shield_mode_enabled',
+  SUBSCRIPTION_STATUS: 'subscription_status',
+  PROGRESS_CALENDAR: 'progress_calendar',
 } as const;
 
 export const storage = {

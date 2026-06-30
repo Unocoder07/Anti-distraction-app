@@ -2,20 +2,24 @@
  * CategoryFilter - Category Selection Tabs
  */
 
-import { COLORS } from '@/src/constants/colors';
 import { SPACING } from '@/src/constants/spacing';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
-type Category = 'All' | 'Social Media' | 'Gaming' | 'Entertainment';
+type Category = 'All' | 'Social Media' | 'Gaming' | 'Entertainment' | 'Short Video';
 
 interface CategoryFilterProps {
   selected: Category;
   onSelect: (category: Category) => void;
 }
 
-const CATEGORIES: Category[] = ['All', 'Social Media', 'Gaming', 'Entertainment'];
+const CATEGORIES: Category[] = ['All', 'Social Media', 'Gaming', 'Entertainment', 'Short Video'];
 
 export function CategoryFilter({ selected, onSelect }: CategoryFilterProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <ScrollView
       horizontal
@@ -46,7 +50,7 @@ export function CategoryFilter({ selected, onSelect }: CategoryFilterProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     gap: SPACING.sm,
     paddingHorizontal: SPACING.md,

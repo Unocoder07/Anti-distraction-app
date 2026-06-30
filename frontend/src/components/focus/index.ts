@@ -1,5 +1,6 @@
 export { useFocusStore } from './focusStore';
 export type { SessionPhase } from './focusStore';
+export { CycleIndicator } from './CycleIndicator';
 export { FocusTimer } from './FocusTimer';
 export { SessionControls } from './SessionControls';
 export { SessionStats } from './SessionStats';

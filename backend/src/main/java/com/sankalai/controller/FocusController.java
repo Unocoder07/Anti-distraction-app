@@ -4,7 +4,6 @@ import com.sankalai.dto.FocusSessionDTO;
 import com.sankalai.dto.StartSessionRequest;
 import com.sankalai.dto.CompleteSessionRequest;
 import com.sankalai.dto.BreakSessionRequest;
-import com.sankalai.dto.SessionCompletionResponse;
 import com.sankalai.entity.User;
 import com.sankalai.service.AuthService;
 import com.sankalai.service.FocusService;
@@ -47,7 +46,8 @@ public class FocusController {
                     user.getUserId(),
                     request.getDuration(),
                     request.getCycles(),
-                    subject);
+                    subject,
+                    request.getOrigin());
 
             return ResponseEntity.ok(mapToDTO(session));
         } catch (Exception e) {
@@ -147,6 +147,25 @@ public class FocusController {
     }
 
     /**
+     * Delete a focus session
+     */
+    @DeleteMapping("/sessions/{sessionId}")
+    public ResponseEntity<?> deleteSession(
+            @PathVariable String sessionId,
+            Authentication authentication) {
+        try {
+            String email = authentication.getName();
+            User user = authService.getUserByEmail(email);
+
+            focusService.deleteFocusSession(sessionId, user.getUserId());
+
+            return ResponseEntity.ok(new MessageResponse("Session deleted successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
      * Get user's focus sessions
      */
     @GetMapping("/sessions")
@@ -212,6 +231,7 @@ public class FocusController {
                 .subjectId(session.getSubjectId())
                 .subjectIcon(session.getSubjectIcon())
                 .subjectColor(session.getSubjectColor())
+                .origin(session.getOrigin())
                 .status(session.getStatus().name().toLowerCase())
                 .focusPointsEarned(session.getFocusPointsEarned())
                 .xpEarned(session.getXpEarned())

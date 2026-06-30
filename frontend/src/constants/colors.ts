@@ -1,17 +1,8 @@
-export const COLORS = {
-  background: "#020617",
-  surface: "#0f172a",
-  card: "#1e293b",
+// Static dark palette — kept for backward compatibility.
+//
+// New code should read colors from the centralized theme via `useTheme()`
+// (see src/theme). This constant is the dark palette and stays available so
+// non-themed / pre-login surfaces and any not-yet-migrated module still work.
+import { darkColors } from '../theme/themes';
 
-  primary: "#14b8a6",
-  secondary: "#3b82f6",
-
-  success: "#22c55e",
-  warning: "#f59e0b",
-  danger: "#ef4444",
-
-  text: "#ffffff",
-  textSecondary: "#94a3b8",
-
-  border: "#334155",
-};
+export const COLORS = darkColors;

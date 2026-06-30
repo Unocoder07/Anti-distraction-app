@@ -48,7 +48,7 @@ export interface UserProfile {
 // ACHIEVEMENT DEFINITIONS
 // ═══════════════════════════════════════════════════════════
 
-const ACHIEVEMENT_DEFINITIONS: Omit<Achievement, 'unlocked' | 'unlockedAt' | 'progress' | 'currentValue'>[] = [
+export const ACHIEVEMENT_DEFINITIONS: Omit<Achievement, 'unlocked' | 'unlockedAt' | 'progress' | 'currentValue'>[] = [
   // Common Achievements
   {
     id: 'first-session',

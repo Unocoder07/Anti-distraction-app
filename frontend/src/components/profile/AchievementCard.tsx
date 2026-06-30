@@ -1,6 +1,8 @@
 import { Lock } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 
 export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary';
 
@@ -32,6 +34,8 @@ const RARITY_CONFIG: Record<
 };
 
 export function AchievementCard({ achievement: a }: AchievementCardProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const rarity = RARITY_CONFIG[a.rarity];
 
   return (
@@ -90,7 +94,7 @@ export function AchievementCard({ achievement: a }: AchievementCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'flex-start',

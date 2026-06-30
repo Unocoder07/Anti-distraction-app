@@ -18,6 +18,9 @@ import com.sankalai.entity.BlockingLog;
 import com.sankalai.entity.BlockingSession;
 import com.sankalai.entity.User;
 import com.sankalai.entity.UserStats;
+import com.sankalai.exception.BadRequestException;
+import com.sankalai.exception.ResourceNotFoundException;
+import com.sankalai.exception.UnauthorizedActionException;
 import com.sankalai.repository.BlockedAppRepository;
 import com.sankalai.repository.BlockingLogRepository;
 import com.sankalai.repository.BlockingSessionRepository;
@@ -27,7 +30,7 @@ import com.sankalai.repository.UserStatsRepository;
 @Service
 public class BlockingService {
 
-    private static final int REWARD_COINS = 20;
+    private static final int REWARD_COINS_PER_BLOCKED_APP = 30;
     private static final int PENALTY_COINS = 50;
     private static final int DEFAULT_SESSION_DURATION = 50;
     private final UserRepository userRepository;
@@ -63,7 +66,7 @@ public class BlockingService {
     @Transactional
     public List<BlockedAppDTO> saveUserBlockedApps(String userId, SaveBlockedAppsRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // Delete existing blocked apps
         List<BlockedApp> existingApps = blockedAppRepository.findByUser_UserId(userId);
@@ -87,10 +90,10 @@ public class BlockingService {
     @Transactional
     public BlockedAppDTO toggleAppBlocking(String userId, Integer appId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         BlockedApp app = blockedAppRepository.findByUser_UserIdAndAppId(userId, appId)
-                .orElseThrow(() -> new RuntimeException("App not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("App not found"));
 
         app.setBlocked(!app.getBlocked());
         BlockedApp savedApp = blockedAppRepository.save(app);
@@ -109,7 +112,7 @@ public class BlockingService {
     @Transactional
     public BlockingSessionDTO startBlockingSession(String userId, StartSessionRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         int duration = request.getDuration() != null ? request.getDuration() : DEFAULT_SESSION_DURATION;
 
@@ -130,33 +133,34 @@ public class BlockingService {
     @Transactional
     public SessionActionResponse completeBlockingSession(String userId, String sessionId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         BlockingSession session = blockingSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
 
         if (!session.getUser().getUserId().equals(userId)) {
-            throw new RuntimeException("Unauthorized");
+            throw new UnauthorizedActionException("You do not have access to this session");
         }
 
         if (session.getStatus() != BlockingSession.SessionStatus.ACTIVE) {
-            throw new RuntimeException("Session is not active");
+            throw new BadRequestException("Session is not active");
         }
 
         // Update session
         session.setStatus(BlockingSession.SessionStatus.COMPLETED);
         session.setCompletedAt(LocalDateTime.now());
-        session.setCoinsEarned(REWARD_COINS);
+        int rewardCoins = calculateRewardCoins(1);
+        session.setCoinsEarned(rewardCoins);
         blockingSessionRepository.save(session);
 
         // Award coins
-        int currentCoins = updateUserCoins(userId, REWARD_COINS);
+        int currentCoins = updateUserCoins(userId, rewardCoins);
 
         // Log the action
         logBlockingAction(user, session.getAppId(), session.getAppName(),
-                BlockingLog.LogAction.SESSION_COMPLETE, REWARD_COINS, sessionId);
+                BlockingLog.LogAction.SESSION_COMPLETE, rewardCoins, sessionId);
 
-        return new SessionActionResponse(sessionId, REWARD_COINS, currentCoins, "Session completed! Earned " + REWARD_COINS + " Focus Points");
+        return new SessionActionResponse(sessionId, rewardCoins, currentCoins, "Session completed! Earned " + rewardCoins + " Focus Points");
     }
 
     /**
@@ -165,17 +169,17 @@ public class BlockingService {
     @Transactional
     public SessionActionResponse breakBlockingSession(String userId, String sessionId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         BlockingSession session = blockingSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
 
         if (!session.getUser().getUserId().equals(userId)) {
-            throw new RuntimeException("Unauthorized");
+            throw new UnauthorizedActionException("You do not have access to this session");
         }
 
         if (session.getStatus() != BlockingSession.SessionStatus.ACTIVE) {
-            throw new RuntimeException("Session is not active");
+            throw new BadRequestException("Session is not active");
         }
 
         // Update session
@@ -266,15 +270,22 @@ public class BlockingService {
 
     private int updateUserCoins(String userId, int coinsChange) {
         UserStats stats = userStatsRepository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("User stats not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User stats not found"));
 
         long currentCoins = stats.getCurrentFocusPoints();
         long newCoins = Math.max(0, currentCoins + coinsChange);
 
+        if (coinsChange > 0) {
+            stats.setTotalFocusPoints(stats.getTotalFocusPoints() + coinsChange);
+        }
         stats.setCurrentFocusPoints(newCoins);
         userStatsRepository.save(stats);
 
         return (int) newCoins;
+    }
+
+    private int calculateRewardCoins(int blockedAppCount) {
+        return Math.max(0, blockedAppCount) * REWARD_COINS_PER_BLOCKED_APP;
     }
 
     private void logBlockingAction(User user, Integer appId, String appName,

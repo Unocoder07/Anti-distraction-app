@@ -3,6 +3,9 @@ import { NativeEventEmitter, NativeModules, Platform } from "react-native";
 export type NativeBlockedApp = {
   packageName: string;
   appName: string;
+  sessionStartedAt?: number;
+  sessionEndsAt?: number;
+  sessionDuration?: number;
 };
 
 export type NativeBlockingSessionPayload = {
@@ -15,6 +18,7 @@ export type NativeBlockingSessionPayload = {
 export type NativeUsageRecommendation = {
   packageName: string;
   name: string;
+  icon?: string;
   isSystemApp: boolean;
   category?: string;
   totalTimeMs?: number;
@@ -28,28 +32,43 @@ export type NativeAppBlockedEvent = {
   timestamp: number;
 };
 
+export type NativeSensitiveAppEvent = {
+  packageName: string;
+  appName: string;
+  timestamp: number;
+};
+
+export type NativeSensitiveAppClearedEvent = {
+  timestamp: number;
+};
+
 type NativeSubscription = { remove: () => void };
 
 type AppBlockerNativeModule = {
-  hasOverlayPermission?: () => boolean;
-  requestOverlayPermission?: () => boolean;
-  isAccessibilityServiceEnabled?: () => boolean;
-  requestAccessibilityService?: () => boolean;
-  hasUsageStatsPermission?: () => boolean;
-  requestUsageStatsPermission?: () => boolean;
-  startPassiveMonitoring?: () => boolean;
-  stopPassiveMonitoring?: () => boolean;
-  isShieldModeEnabled?: () => boolean;
-  setShieldModeEnabled?: (enabled: boolean) => boolean;
+  hasOverlayPermission?: () => Promise<boolean>;
+  requestOverlayPermission?: () => Promise<boolean>;
+  isAccessibilityServiceEnabled?: () => Promise<boolean>;
+  requestAccessibilityService?: () => Promise<boolean>;
+  disableAccessibilityService?: () => Promise<boolean>;
+  hasUsageStatsPermission?: () => Promise<boolean>;
+  requestUsageStatsPermission?: () => Promise<boolean>;
+  startPassiveMonitoring?: () => Promise<boolean>;
+  stopPassiveMonitoring?: () => Promise<boolean>;
+  isShieldModeEnabled?: () => Promise<boolean>;
+  setShieldModeEnabled?: (enabled: boolean) => Promise<boolean>;
   getUsageStatsRecommendations?: () => Promise<NativeUsageRecommendation[]>;
   getInstalledApps?: () => Promise<NativeUsageRecommendation[]>;
-  startBlockingSession?: (session: NativeBlockingSessionPayload) => boolean;
-  stopBlockingSession?: () => boolean;
-  stopBlockingSessionById?: (sessionId: string) => boolean;
-  isBlockingSessionActive?: () => boolean;
-  isFocusSessionActive?: () => boolean;
-  pauseMonitoring?: () => boolean;
-  resumeMonitoring?: () => boolean;
+  scanSensitiveApps?: () => Promise<string[]>;
+  getSensitiveAppsWhitelist?: () => Promise<string[]>;
+  startBlockingSession?: (session: NativeBlockingSessionPayload) => Promise<boolean>;
+  stopBlockingSession?: () => Promise<boolean>;
+  stopBlockingSessionById?: (sessionId: string) => Promise<boolean>;
+  isBlockingSessionActive?: () => Promise<boolean>;
+  isFocusSessionActive?: () => Promise<boolean>;
+  pauseMonitoring?: () => Promise<boolean>;
+  resumeMonitoring?: () => Promise<boolean>;
+  clearSensitiveAppState?: () => Promise<boolean>;
+  isSensitiveApp?: (packageName: string) => Promise<boolean>;
   addListener?: (eventName: string) => void;
   removeListeners?: (count: number) => void;
 };
@@ -67,7 +86,27 @@ function callBoolean(
   try {
     const method = nativeModule?.[methodName];
     if (typeof method !== "function") return fallback;
-    return Boolean((method as (...methodArgs: unknown[]) => unknown)(...args));
+    // Native module methods return Promises but callBoolean is sync
+    // For sync checks, this returns the Promise (truthy) — use async versions instead
+    const result = (method as (...methodArgs: unknown[]) => unknown)(...args);
+    if (result instanceof Promise) return fallback;
+    return Boolean(result);
+  } catch (error) {
+    console.error(`AppBlockerNative.${String(methodName)} failed:`, error);
+    return fallback;
+  }
+}
+
+async function callBooleanAsync(
+  methodName: keyof AppBlockerNativeModule,
+  fallback: boolean,
+  ...args: unknown[]
+): Promise<boolean> {
+  try {
+    const method = nativeModule?.[methodName];
+    if (typeof method !== "function") return fallback;
+    const result = await (method as (...methodArgs: unknown[]) => unknown)(...args);
+    return Boolean(result);
   } catch (error) {
     console.error(`AppBlockerNative.${String(methodName)} failed:`, error);
     return fallback;
@@ -88,6 +127,22 @@ async function callArray(
   }
 }
 
+async function callStringArray(
+  methodName: keyof AppBlockerNativeModule,
+): Promise<string[]> {
+  try {
+    const method = nativeModule?.[methodName];
+    if (typeof method !== "function") return [];
+    const result = await (method as () => Promise<string[]> | string[])();
+    return Array.isArray(result)
+      ? result.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch (error) {
+    console.error(`AppBlockerNative.${String(methodName)} failed:`, error);
+    return [];
+  }
+}
+
 export const appBlockerNative = {
   isAvailable(): boolean {
     return Platform.OS === "android" && !!nativeModule;
@@ -97,11 +152,19 @@ export const appBlockerNative = {
     return callBoolean("hasOverlayPermission", true);
   },
 
+  async hasOverlayPermissionAsync(): Promise<boolean> {
+    return callBooleanAsync("hasOverlayPermission", true);
+  },
+
   requestOverlayPermission(): boolean {
     return callBoolean("requestOverlayPermission", true);
   },
 
-  isAccessibilityServiceEnabled(): boolean {
+  async isAccessibilityServiceEnabled(): Promise<boolean> {
+    return callBooleanAsync("isAccessibilityServiceEnabled", false);
+  },
+
+  isAccessibilityServiceEnabledSync(): boolean {
     return callBoolean("isAccessibilityServiceEnabled", false);
   },
 
@@ -109,7 +172,15 @@ export const appBlockerNative = {
     return callBoolean("requestAccessibilityService", false);
   },
 
-  hasUsageStatsPermission(): boolean {
+  async disableAccessibilityService(): Promise<boolean> {
+    return callBooleanAsync("disableAccessibilityService", true);
+  },
+
+  async hasUsageStatsPermission(): Promise<boolean> {
+    return callBooleanAsync("hasUsageStatsPermission", false);
+  },
+
+  hasUsageStatsPermissionSync(): boolean {
     return callBoolean("hasUsageStatsPermission", false);
   },
 
@@ -141,32 +212,48 @@ export const appBlockerNative = {
     return callArray("getInstalledApps");
   },
 
-  startBlockingSession(session: NativeBlockingSessionPayload): boolean {
-    return callBoolean("startBlockingSession", false, session);
+  scanSensitiveApps(): Promise<string[]> {
+    return callStringArray("scanSensitiveApps");
   },
 
-  stopBlockingSession(): boolean {
-    return callBoolean("stopBlockingSession", true);
+  getSensitiveAppsWhitelist(): Promise<string[]> {
+    return callStringArray("getSensitiveAppsWhitelist");
   },
 
-  stopBlockingSessionById(sessionId: string): boolean {
-    return callBoolean("stopBlockingSessionById", true, sessionId);
+  async startBlockingSession(session: NativeBlockingSessionPayload): Promise<boolean> {
+    return callBooleanAsync("startBlockingSession", false, session);
   },
 
-  isBlockingSessionActive(): boolean {
-    return callBoolean("isBlockingSessionActive", false);
+  async stopBlockingSession(): Promise<boolean> {
+    return callBooleanAsync("stopBlockingSession", true);
+  },
+
+  async stopBlockingSessionById(sessionId: string): Promise<boolean> {
+    return callBooleanAsync("stopBlockingSessionById", true, sessionId);
+  },
+
+  async isBlockingSessionActive(): Promise<boolean> {
+    return callBooleanAsync("isBlockingSessionActive", false);
   },
 
   isFocusSessionActive(): boolean {
     return callBoolean("isFocusSessionActive", false);
   },
 
-  pauseMonitoring(): boolean {
-    return callBoolean("pauseMonitoring", true);
+  async pauseMonitoring(): Promise<boolean> {
+    return callBooleanAsync("pauseMonitoring", true);
   },
 
-  resumeMonitoring(): boolean {
-    return callBoolean("resumeMonitoring", true);
+  async resumeMonitoring(): Promise<boolean> {
+    return callBooleanAsync("resumeMonitoring", true);
+  },
+
+  async clearSensitiveAppState(): Promise<boolean> {
+    return callBooleanAsync("clearSensitiveAppState", true);
+  },
+
+  async isSensitiveApp(packageName: string): Promise<boolean> {
+    return callBooleanAsync("isSensitiveApp", false, packageName);
   },
 
   addAppBlockedListener(
@@ -177,5 +264,25 @@ export const appBlockerNative = {
     }
 
     return eventEmitter.addListener("AppBlocked", listener);
+  },
+
+  addSensitiveAppDetectedListener(
+    listener: (event: NativeSensitiveAppEvent) => void,
+  ): NativeSubscription {
+    if (!eventEmitter) {
+      return { remove: () => undefined };
+    }
+
+    return eventEmitter.addListener("SensitiveAppDetected", listener);
+  },
+
+  addSensitiveAppClearedListener(
+    listener: (event: NativeSensitiveAppClearedEvent) => void,
+  ): NativeSubscription {
+    if (!eventEmitter) {
+      return { remove: () => undefined };
+    }
+
+    return eventEmitter.addListener("SensitiveAppCleared", listener);
   },
 };

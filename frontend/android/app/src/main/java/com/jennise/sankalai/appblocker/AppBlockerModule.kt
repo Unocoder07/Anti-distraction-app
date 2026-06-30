@@ -3,11 +3,16 @@ package com.jennise.sankalai.appblocker
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Base64
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import java.io.ByteArrayOutputStream
 
 class AppBlockerModule(
     reactContext: ReactApplicationContext
@@ -136,12 +141,33 @@ class AppBlockerModule(
                             appMap.getString("packageName") ?: ""
                         val appName =
                             appMap.getString("appName") ?: ""
+                        val sessionStartedAt =
+                            if (appMap.hasKey("sessionStartedAt") && !appMap.isNull("sessionStartedAt")) {
+                                appMap.getDouble("sessionStartedAt").toLong()
+                            } else {
+                                startTime
+                            }
+                        val sessionEndsAt =
+                            if (appMap.hasKey("sessionEndsAt") && !appMap.isNull("sessionEndsAt")) {
+                                appMap.getDouble("sessionEndsAt").toLong()
+                            } else {
+                                startTime + duration * 60_000L
+                            }
+                        val sessionDuration =
+                            if (appMap.hasKey("sessionDuration") && !appMap.isNull("sessionDuration")) {
+                                appMap.getInt("sessionDuration")
+                            } else {
+                                duration
+                            }
 
                         if (packageName.isNotEmpty()) {
                             blockedApps.add(
                                 BlockedApp(
                                     packageName = packageName,
-                                    appName = appName
+                                    appName = appName,
+                                    sessionStartedAt = sessionStartedAt,
+                                    sessionEndsAt = sessionEndsAt,
+                                    sessionDuration = sessionDuration
                                 )
                             )
                         }
@@ -230,10 +256,19 @@ class AppBlockerModule(
             val installedApps = WritableNativeArray()
 
             for (packageInfo in packages) {
-                if (
+                val isSystem =
                     packageInfo.flags and
                     android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
-                ) {
+                val isUpdatedSystem =
+                    packageInfo.flags and
+                    android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP != 0
+                val hasLauncher =
+                    packageManager.getLaunchIntentForPackage(packageInfo.packageName) != null
+
+                // Skip pure system/background packages (no launcher icon), but keep
+                // user-facing apps even when pre-installed as system apps — many phones
+                // ship Facebook, Instagram, etc. as system apps and they must still appear.
+                if (!hasLauncher) {
                     continue
                 }
 
@@ -243,6 +278,13 @@ class AppBlockerModule(
                         "name",
                         packageManager.getApplicationLabel(packageInfo).toString()
                     )
+                    putString(
+                        "icon",
+                        drawableToDataUri(
+                            packageManager.getApplicationIcon(packageInfo)
+                        )
+                    )
+                    putBoolean("isSystemApp", isSystem || isUpdatedSystem)
                 }
 
                 installedApps.pushMap(appMap)
@@ -274,6 +316,26 @@ class AppBlockerModule(
         }
     }
 
+    private fun drawableToDataUri(drawable: Drawable): String? {
+        return try {
+            val size = 96
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+
+            val output = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+
+            "data:image/png;base64," + Base64.encodeToString(
+                output.toByteArray(),
+                Base64.NO_WRAP
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     companion object {
         fun sendAppBlockedEvent(
             context: ReactApplicationContext,
@@ -302,5 +364,8 @@ class AppBlockerModule(
 
 data class BlockedApp(
     val packageName: String,
-    val appName: String
+    val appName: String,
+    val sessionStartedAt: Long = 0L,
+    val sessionEndsAt: Long = 0L,
+    val sessionDuration: Int = 0
 )

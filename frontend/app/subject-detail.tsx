@@ -1,21 +1,25 @@
 // Route: "/subject-detail" → Subject Detail Screen with Session History
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
 import { focusService } from '@/src/services/focusService';
 import { useAuthStore } from '@/src/store/authStore';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import type { FocusSession, SubjectStudyData } from '@/src/types';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Calendar, Clock, Coins, TrendingUp, Zap } from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ArrowLeft, Calendar, Clock, Coins, Trash2, TrendingUp, Zap } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function SubjectDetailScreen() {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const params = useLocalSearchParams();
   const subjectId = params.subjectId as string;
   const subjectName = params.subjectName as string;
   const { user } = useAuthStore();
   const [subjectData, setSubjectData] = useState<SubjectStudyData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user || !subjectId) return;
@@ -65,8 +69,46 @@ export default function SubjectDetailScreen() {
   }, [user, subjectId, subjectName]);
 
   useEffect(() => {
-    loadData();
+    const timeoutId = setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
   }, [loadData]);
+
+  const handleDeleteSession = (session: FocusSession) => {
+    Alert.alert(
+      'Delete Session',
+      'Are you sure you want to remove this session from your history? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingId(session.id);
+              await focusService.deleteSession(session.id);
+              setSubjectData((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      sessionsHistory: (prev.sessionsHistory || []).filter((s) => s.id !== session.id),
+                      totalSessions: Math.max(0, prev.totalSessions - 1),
+                      totalFocusTime: Math.max(0, prev.totalFocusTime - session.duration),
+                    }
+                  : prev,
+              );
+            } catch (error: any) {
+              Alert.alert('Delete Failed', error?.message || 'Please try again.');
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   if (loading) {
     return (
@@ -230,6 +272,18 @@ export default function SubjectDetailScreen() {
                     {session.status === 'completed' ? '✓' : '✗'}
                   </Text>
                 </View>
+                <Pressable
+                  style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.6 }]}
+                  hitSlop={8}
+                  disabled={deletingId === session.id}
+                  onPress={() => handleDeleteSession(session)}
+                >
+                  {deletingId === session.id ? (
+                    <ActivityIndicator size="small" color={COLORS.danger} />
+                  ) : (
+                    <Trash2 size={16} color={COLORS.danger} />
+                  )}
+                </Pressable>
               </View>
 
               {/* Session Stats */}
@@ -273,7 +327,7 @@ export default function SubjectDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -447,6 +501,16 @@ const styles = StyleSheet.create({
   },
   sessionStatusTextFailed: {
     color: '#ef4444',
+  },
+  deleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
   },
   sessionStats: {
     flexDirection: 'row',

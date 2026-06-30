@@ -25,6 +25,7 @@ public class FocusSessionDTO {
     private String subjectId;
     private String subjectIcon;
     private String subjectColor;
+    private String origin;
     private String status;
     private Integer focusPointsEarned;
     private Integer xpEarned;

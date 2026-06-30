@@ -1,11 +1,12 @@
 // Exam Selection Screen
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
 import { authService } from '@/src/services/authService';
 import { useAuthStore } from '@/src/store/authStore';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { router } from 'expo-router';
 import { CheckCircle, ChevronRight } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -84,6 +85,8 @@ const EXAMS: Exam[] = [
 ];
 
 export default function ExamSelectionScreen() {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [selectedExam, setSelectedExam] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const user = useAuthStore((state) => state.user);
@@ -189,7 +192,7 @@ export default function ExamSelectionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

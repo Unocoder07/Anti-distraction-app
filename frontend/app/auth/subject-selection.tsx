@@ -1,11 +1,12 @@
 // Subject Selection Screen
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
 import { authService } from '@/src/services/authService';
 import { useAuthStore } from '@/src/store/authStore';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CheckCircle, Plus, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     FlatList,
     Modal,
@@ -71,6 +72,8 @@ const EXAM_SUBJECTS: Record<string, Subject[]> = {
 };
 
 export default function SubjectSelectionScreen() {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const { examId } = useLocalSearchParams<{ examId: string }>();
   const user = useAuthStore((state) => state.user);
   const refreshUserProfile = useAuthStore((state) => state.refreshUserProfile);
@@ -274,7 +277,7 @@ export default function SubjectSelectionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

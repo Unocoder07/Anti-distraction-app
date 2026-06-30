@@ -1,6 +1,8 @@
 import { ChevronRight } from 'lucide-react-native';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 
 export interface ProfileMenuItem {
   id: string;
@@ -19,6 +21,8 @@ interface ProfileMenuProps {
 }
 
 export function ProfileMenu({ title, items }: ProfileMenuProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <View style={styles.section}>
       {title && <Text style={styles.sectionTitle}>{title}</Text>}
@@ -77,7 +81,7 @@ export function ProfileMenu({ title, items }: ProfileMenuProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   section: {
     gap: 8,
   },

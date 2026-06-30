@@ -8,6 +8,7 @@ import { appBlockerNative as AppBlocker } from "./appBlockerNative";
 export interface InstalledAppNative {
   packageName: string;
   name: string;
+  icon?: string;
   isSystemApp: boolean;
   category?: string;
   totalTimeMs?: number;
@@ -41,7 +42,7 @@ export const nativeAppBlocker = {
   async isAccessibilityServiceEnabled(): Promise<boolean> {
     if (!isModuleAvailable()) return false;
     try {
-      return AppBlocker.isAccessibilityServiceEnabled();
+      return await AppBlocker.isAccessibilityServiceEnabled();
     } catch (error) {
       console.error("Error checking accessibility service:", error);
       return false;
@@ -60,7 +61,7 @@ export const nativeAppBlocker = {
   async hasUsageStatsPermission(): Promise<boolean> {
     if (!isModuleAvailable()) return false;
     try {
-      return AppBlocker.hasUsageStatsPermission();
+      return await AppBlocker.hasUsageStatsPermission();
     } catch (error) {
       console.error("Error checking usage stats permission:", error);
       return false;
@@ -114,7 +115,7 @@ export const nativeAppBlocker = {
   ): Promise<boolean> {
     if (!isModuleAvailable()) return false;
     try {
-      return AppBlocker.startBlockingSession({
+      return await AppBlocker.startBlockingSession({
         sessionId,
         blockedApps,
         startTime,
@@ -145,10 +146,30 @@ export const nativeAppBlocker = {
     }
   },
 
+  async scanSensitiveApps(): Promise<string[]> {
+    if (!isModuleAvailable()) return [];
+    try {
+      return await AppBlocker.scanSensitiveApps();
+    } catch (error) {
+      console.error("Error scanning sensitive apps:", error);
+      return [];
+    }
+  },
+
+  async getSensitiveAppsWhitelist(): Promise<string[]> {
+    if (!isModuleAvailable()) return [];
+    try {
+      return await AppBlocker.getSensitiveAppsWhitelist();
+    } catch (error) {
+      console.error("Error loading sensitive apps whitelist:", error);
+      return [];
+    }
+  },
+
   async stopBlockingSession(): Promise<void> {
     if (!isModuleAvailable()) return;
     try {
-      AppBlocker.stopBlockingSession();
+      await AppBlocker.stopBlockingSession();
     } catch (error) {
       console.error("Error stopping blocking session:", error);
     }
@@ -157,7 +178,7 @@ export const nativeAppBlocker = {
   async isBlockingSessionActive(): Promise<boolean> {
     if (!isModuleAvailable()) return false;
     try {
-      return AppBlocker.isBlockingSessionActive();
+      return await AppBlocker.isBlockingSessionActive();
     } catch (error) {
       console.error("Error checking blocking session:", error);
       return false;

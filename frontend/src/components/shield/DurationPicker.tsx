@@ -2,10 +2,11 @@
  * DurationPicker - Time Selection Component
  */
 
-import { COLORS } from '@/src/constants/colors';
 import { RADIUS, SPACING } from '@/src/constants/spacing';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 import { Clock } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 interface DurationPickerProps {
@@ -22,6 +23,8 @@ const PRESET_DURATIONS = [
 ];
 
 export function DurationPicker({ selected, onSelect }: DurationPickerProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customMinutes, setCustomMinutes] = useState('');
 
@@ -124,7 +127,7 @@ export function DurationPicker({ selected, onSelect }: DurationPickerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     gap: SPACING.sm,
   },

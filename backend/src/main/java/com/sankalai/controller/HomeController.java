@@ -1,5 +1,6 @@
 package com.sankalai.controller;
 
+import com.sankalai.dto.CreateCustomChallengeRequest;
 import com.sankalai.dto.HomeDataResponse;
 import com.sankalai.dto.SessionCompletionRequest;
 import com.sankalai.entity.User;
@@ -69,6 +70,44 @@ public class HomeController {
             var challenges = homeService.getDailyChallenges(user.getUserId());
             
             return ResponseEntity.ok(challenges);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/challenges/custom")
+    public ResponseEntity<?> createCustomChallenge(
+            @Valid @RequestBody CreateCustomChallengeRequest request,
+            Authentication authentication
+    ) {
+        try {
+            String email = authentication.getName();
+            User user = authService.getUserByEmail(email);
+
+            homeService.createCustomChallenge(
+                    user.getUserId(),
+                    request.getTitle(),
+                    request.getDescription()
+            );
+
+            return ResponseEntity.ok(new MessageResponse("Target added successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/challenges/{challengeId}/complete")
+    public ResponseEntity<?> completeChallenge(
+            @PathVariable String challengeId,
+            Authentication authentication
+    ) {
+        try {
+            String email = authentication.getName();
+            User user = authService.getUserByEmail(email);
+
+            homeService.completeChallenge(user.getUserId(), challengeId);
+
+            return ResponseEntity.ok(new MessageResponse("Target completed successfully"));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         }

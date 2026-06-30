@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 
 interface GradientButtonProps {
   label: string;
@@ -19,6 +21,8 @@ export function GradientButton({
   disabled = false,
   fullWidth = true,
 }: GradientButtonProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <Pressable
       onPress={onPress}
@@ -46,7 +50,7 @@ export function GradientButton({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   btn: {
     flexDirection: 'row',
     alignItems: 'center',

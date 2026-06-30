@@ -25,7 +25,7 @@ import jakarta.persistence.Table;
 public class DailyChallenge {
 
     public enum ChallengeType {
-        SESSION, TIME, STREAK, BLOCKING, DEEP_WORK
+        SESSION, TIME, STREAK, BLOCKING, DEEP_WORK, CUSTOM
     }
 
     public enum Difficulty {

@@ -2,18 +2,38 @@
 import { create } from 'zustand';
 import {
     homeService,
-    type ChallengeHistory,
     type DailyChallenge,
-    type PetStatus,
     type UserStats
 } from '../services/homeService';
+import { progressCalendarService, type ProgressCalendarMark } from '../services/progressCalendarService';
+import { shieldSessionManager } from '../services/shieldSessionManager';
+
+const applyLocalShieldCoinAdjustments = async (stats: UserStats): Promise<UserStats> => {
+  const currentSession = await shieldSessionManager.getCurrentSession();
+  await shieldSessionManager.consumePendingRewards();
+
+  const history = await shieldSessionManager.getHistory();
+  const earned = history.reduce((sum, session) => sum + (session.coinsEarned ?? 0), 0);
+  const lost = history.reduce((sum, session) => sum + (session.coinsLost ?? 0), 0);
+  const activeEarned = currentSession?.coinsEarned ?? 0;
+
+  return {
+    ...stats,
+    totalFocusPoints: stats.totalFocusPoints + earned + activeEarned,
+    currentFocusPoints: Math.max(0, stats.currentFocusPoints + earned + activeEarned - lost),
+  };
+};
+
+const syncProgressMarks = async (userId: string, challenges: DailyChallenge[]) => {
+  await progressCalendarService.syncCompletedSessions(userId);
+  return progressCalendarService.syncDailyTasks(userId, challenges);
+};
 
 interface HomeState {
   // Data
   userStats: UserStats | null;
-  petStatus: PetStatus | null;
   dailyChallenges: DailyChallenge[];
-  challengeHistory: ChallengeHistory[];
+  progressMarks: ProgressCalendarMark[];
   
   // UI State
   loading: boolean;
@@ -24,16 +44,17 @@ interface HomeState {
     currentStreak: number;
     bestStreak: number;
     todayDone: boolean;
+    todayStudyMinutes: number;
   } | null;
 
   // Actions
   loadHomeData: (userId: string) => Promise<void>;
   refreshHomeData: (userId: string) => Promise<void>;
-  updateStats: (updates: Partial<UserStats>) => void;
-  awardRewards: (userId: string, fp: number, xp: number) => Promise<void>;
-  recordSession: (userId: string, duration: number, fp: number, xp: number) => Promise<void>;
-  updateChallengeProgress: (userId: string, type: string, amount: number) => Promise<void>;
-  loadChallengeHistory: (userId: string, days?: number) => Promise<void>;
+  completeDailyChallenge: (userId: string, challengeId: string) => Promise<void>;
+  markFocusSessionCompleted: (userId: string, minutes?: number) => Promise<void>;
+  createCustomChallenge: (userId: string, title: string, description?: string) => Promise<void>;
+  loadProgressCalendar: (userId: string) => Promise<void>;
+  applyFocusCoinDelta: (currentDelta: number, totalEarnedDelta?: number) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   reset: () => void;
@@ -41,9 +62,8 @@ interface HomeState {
 
 const initialState = {
   userStats: null,
-  petStatus: null,
   dailyChallenges: [],
-  challengeHistory: [],
+  progressMarks: [],
   loading: false,
   error: null,
   streakInfo: null,
@@ -60,12 +80,14 @@ export const useHomeStore = create<HomeState>((set, get) => ({
       set({ loading: true, error: null });
 
       const homeData = await homeService.getHomeData(userId);
+      const userStats = await applyLocalShieldCoinAdjustments(homeData.userStats);
+      const progressMarks = await syncProgressMarks(userId, homeData.dailyChallenges);
 
       set({
-        userStats: homeData.userStats,
-        petStatus: homeData.petStatus,
+        userStats,
         dailyChallenges: homeData.dailyChallenges,
         streakInfo: homeData.streakInfo,
+        progressMarks,
         loading: false,
       });
     } catch (error: any) {
@@ -83,83 +105,97 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   },
 
   /**
-   * Update user stats locally
+   * Complete a daily directive manually
    */
-  updateStats: (updates: Partial<UserStats>) => {
-    const { userStats } = get();
-    if (userStats) {
-      set({ userStats: { ...userStats, ...updates } });
-    }
-  },
-
-  /**
-   * Award Focus Points and XP
-   */
-  awardRewards: async (userId: string, fp: number, xp: number) => {
+  completeDailyChallenge: async (userId: string, challengeId: string) => {
     try {
-      await homeService.awardRewards(userId, fp, xp);
-      
-      // Reload stats to get updated values
-      const stats = await homeService.getUserStats(userId);
-      set({ userStats: stats });
-    } catch (error: any) {
-      console.error('Error awarding rewards:', error);
-      set({ error: error.message });
-    }
-  },
-
-  /**
-   * Record session completion
-   */
-  recordSession: async (userId: string, duration: number, fp: number, xp: number) => {
-    try {
-      set({ loading: true });
-
-      await homeService.recordSessionCompletion(userId, duration, fp, xp);
-
-      // Just reload home data once, as it contains everything (stats, pet, challenges)
-      const homeData = await homeService.getHomeData(userId);
+      await homeService.completeDailyChallenge(userId, challengeId);
+      const [homeData, progressMarks] = await Promise.all([
+        homeService.getHomeData(userId),
+        progressCalendarService.recordMark(userId, 'task'),
+      ]);
+      const userStats = await applyLocalShieldCoinAdjustments(homeData.userStats);
 
       set({
-        userStats: homeData.userStats,
-        petStatus: homeData.petStatus,
+        userStats,
         dailyChallenges: homeData.dailyChallenges,
         streakInfo: homeData.streakInfo,
-        loading: false,
+        progressMarks,
       });
     } catch (error: any) {
-      console.error('Error recording session:', error);
-      set({ error: error.message, loading: false });
+      console.error('Error completing daily challenge:', error);
+      set({ error: error.message });
+      throw error;
     }
   },
 
   /**
-   * Update challenge progress
+   * Mark today's calendar as completed because a focus session finished.
+   * Idempotent: the day is only ever marked once, regardless of how many
+   * sessions are completed in the same day.
    */
-  updateChallengeProgress: async (userId: string, type: string, amount: number) => {
+  markFocusSessionCompleted: async (userId: string, minutes = 0) => {
     try {
-      await homeService.updateChallengeProgress(userId, type, amount);
-
-      // Reload challenges
-      const challenges = await homeService.getDailyChallenges(userId);
-      set({ dailyChallenges: challenges });
+      const progressMarks = await progressCalendarService.recordSessionDay(
+        userId,
+        new Date(),
+        minutes,
+      );
+      set({ progressMarks });
     } catch (error: any) {
-      console.error('Error updating challenge progress:', error);
+      console.error('Error marking focus session on calendar:', error);
+    }
+  },
+
+  /**
+   * Add a custom daily directive
+   */
+  createCustomChallenge: async (userId: string, title: string, description?: string) => {
+    try {
+      await homeService.createCustomChallenge(userId, title, description);
+      const homeData = await homeService.getHomeData(userId);
+      const userStats = await applyLocalShieldCoinAdjustments(homeData.userStats);
+
+      set({
+        userStats,
+        dailyChallenges: homeData.dailyChallenges,
+        streakInfo: homeData.streakInfo,
+      });
+    } catch (error: any) {
+      console.error('Error creating custom challenge:', error);
+      set({ error: error.message });
+      throw error;
+    }
+  },
+
+  /**
+   * Load persisted monthly progress marks
+   */
+  loadProgressCalendar: async (userId: string) => {
+    try {
+      const progressMarks = await progressCalendarService.syncCompletedSessions(userId);
+      set({ progressMarks });
+    } catch (error: any) {
+      console.error('Error loading progress calendar:', error);
       set({ error: error.message });
     }
   },
 
   /**
-   * Load challenge history
+   * Apply local Shield rewards/penalties immediately to the Home coin balance.
+   * Backend-loaded stats are adjusted from Shield history on the next refresh.
    */
-  loadChallengeHistory: async (userId: string, days: number = 7) => {
-    try {
-      const history = await homeService.getChallengeHistory(userId, days);
-      set({ challengeHistory: history });
-    } catch (error: any) {
-      console.error('Error loading challenge history:', error);
-      set({ error: error.message });
-    }
+  applyFocusCoinDelta: (currentDelta, totalEarnedDelta = Math.max(0, currentDelta)) => {
+    const { userStats } = get();
+    if (!userStats) return;
+
+    set({
+      userStats: {
+        ...userStats,
+        totalFocusPoints: Math.max(0, userStats.totalFocusPoints + totalEarnedDelta),
+        currentFocusPoints: Math.max(0, userStats.currentFocusPoints + currentDelta),
+      },
+    });
   },
 
   /**

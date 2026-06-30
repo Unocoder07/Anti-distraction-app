@@ -18,6 +18,7 @@ export interface FocusSession {
 
   // Session Type
   type: "pomodoro" | "deep-work" | "custom";
+  origin?: "manual" | "planned" | "custom-target";
   cycles: number;
   cyclesCompleted: number;
 
@@ -74,6 +75,7 @@ class FocusService {
       icon: string;
       color: string;
     },
+    origin: "manual" | "planned" | "custom-target" = "manual",
   ): Promise<FocusSession> {
     let createdSessionId: string | null = null;
 
@@ -98,6 +100,7 @@ class FocusService {
         subjectName: subject?.name,
         subjectIcon: subject?.icon,
         subjectColor: subject?.color,
+        origin,
       });
 
       createdSessionId = response.id;
@@ -116,6 +119,7 @@ class FocusService {
         duration: response.duration,
         actualDuration: response.actualDuration,
         type: response.type,
+        origin: response.origin,
         cycles: response.cycles,
         cyclesCompleted: response.cyclesCompleted,
         subject: response.subject,
@@ -146,12 +150,12 @@ class FocusService {
           );
         }
       } else {
-        nativeBlockingService.stopNativeSession();
+        await nativeBlockingService.stopNativeSession();
       }
 
       return session;
     } catch (error) {
-      nativeBlockingService.stopNativeSession();
+      await nativeBlockingService.stopNativeSession();
 
       if (createdSessionId) {
         try {
@@ -183,7 +187,7 @@ class FocusService {
     pauseCount: number = 0,
   ): Promise<{ fp: number; xp: number }> {
     try {
-      nativeBlockingService.stopNativeSession();
+      await nativeBlockingService.stopNativeSession();
 
       const response: any = await apiCall(
         `/focus/sessions/${sessionId}/complete`,
@@ -212,7 +216,7 @@ class FocusService {
     actualDuration: number,
   ): Promise<void> {
     try {
-      nativeBlockingService.stopNativeSession();
+      await nativeBlockingService.stopNativeSession();
 
       await apiCall(`/focus/sessions/${sessionId}/break`, "POST", {
         actualDuration,
@@ -278,6 +282,7 @@ class FocusService {
         duration: s.duration,
         actualDuration: s.actualDuration,
         type: s.type,
+        origin: s.origin,
         cycles: s.cycles,
         cyclesCompleted: s.cyclesCompleted,
         subject: s.subject,
@@ -301,6 +306,13 @@ class FocusService {
       console.error("Error getting user sessions:", error);
       return [];
     }
+  }
+
+  /**
+   * Delete a focus session from backend
+   */
+  async deleteSession(sessionId: string): Promise<void> {
+    await apiCall(`/focus/sessions/${sessionId}`, "DELETE");
   }
 
   /**

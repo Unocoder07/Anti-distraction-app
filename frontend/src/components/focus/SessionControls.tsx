@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { Pause, Play, ShieldAlert, Square } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { useTheme } from '@/src/theme';
+import type { ThemeColors } from '@/src/theme';
 
 interface SessionControlsProps {
   isActive: boolean;
@@ -20,6 +22,8 @@ export function SessionControls({
   debugLabel,
   onDebug,
 }: SessionControlsProps) {
+  const COLORS = useTheme();
+  const styles = useMemo(() => makeStyles(COLORS), [COLORS]);
   return (
     <View style={styles.container}>
       <View style={styles.row}>
@@ -68,7 +72,7 @@ export function SessionControls({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (COLORS: ThemeColors) => StyleSheet.create({
   container: {
     alignItems: 'center',
     gap: 20,
